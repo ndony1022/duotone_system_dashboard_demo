@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>gpt_v5 + v7 연결기능 통합 데모</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<style>
+:root{
+  --primary:#1428a0;--secondary:#0074c4;--accent:#00a4e4;--ink:#1f2a37;--muted:#64748b;
+  --ok:#21c189;--warn:#f59e0b;--err:#ef4444;--panel:#fff;--bg:#f5f7fb;--line:#e5e7eb;--fs:#f6f5ef
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,'Apple SD Gothic Neo','Malgun Gothic',sans-serif}
+.container{display:grid;grid-template-columns:280px 1fr;min-height:100vh}
+.sidebar{background:var(--primary);color:#fff}
+.logo{padding:18px;border-bottom:1px solid rgba(255,255,255,.15);display:flex;gap:10px;align-items:center;font-weight:800}
+.nav-item{padding:10px 12px;margin:8px;border-radius:10px;display:flex;gap:10px;cursor:pointer}
+.nav-item:hover,.nav-item.active{background:rgba(255,255,255,.12)}
+.main{padding:22px 26px}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.page-title{font-size:22px;font-weight:800}
+.controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0 12px}
+.search{position:relative}
+.search input{padding:10px 12px 10px 36px;border:1px solid var(--line);border-radius:10px;background:#fff;width:260px}
+.search i{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#9aa4b2}
+.pill{padding:7px 12px;border:1px solid var(--line);border-radius:999px;background:#fff;font-size:12px;cursor:pointer}
+.pill.on{background:#111827;color:#fff;border-color:#111827}
+.viewbtn{padding:7px 10px;border:1px solid var(--line);border-radius:10px;background:#fff;font-size:12px;cursor:pointer}
+.viewbtn.on{background:var(--primary);color:#fff;border-color:var(--primary)}
+.wrap{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 10px 30px rgba(2,6,23,.06);position:relative}
+.full{position:absolute;right:16px;top:16px}
+.stage{position:relative;height:760px;border:1px dashed var(--line);border-radius:12px;overflow:auto;background:
+  radial-gradient(circle at 24px 24px, rgba(20,40,160,.03) 0 2px, transparent 2px 100%) 0 0/48px 48px}
+.stage:fullscreen{border:none}
+.stage::backdrop{background:var(--fs)}
+#bands{position:absolute;inset:0;z-index:0;pointer-events:none}
+.band{position:absolute;left:0;width:100%;border-top:1px dashed var(--line);border-bottom:1px dashed var(--line);background:rgba(2,6,23,.015)}
+.bandlabel{position:absolute;left:12px;top:8px;color:#596579;font-weight:800}
+#links{position:absolute;inset:0;pointer-events:none;z-index:1}
+.node{position:absolute;min-width:220px;max-width:260px;background:#fff;border:1px solid var(--line);border-radius:12px;
+  padding:10px 12px;font-size:12.5px;box-shadow:0 8px 20px rgba(2,6,23,.08);
+  display:grid;grid-template-columns:60px 1fr;gap:12px;cursor:pointer;transition:.15s;z-index:2}
+.node:hover{transform:translateY(-2px)}
+.node.category{border:2px solid var(--secondary);background:#f1f8ff;font-weight:700}
+.node.main{background:var(--primary);color:#fff;font-weight:800;grid-template-columns:1fr}
+.node .title{display:flex;align-items:center;gap:6px}
+.badges{margin-top:4px;display:flex;gap:6px;flex-wrap:wrap}
+.b{font-size:10px;border-radius:999px;padding:2px 8px;border:1px solid var(--line);background:#f8fafc;color:#334155}
+.b.v2{background:#e1effe;color:#1e40af;border-color:#bfdbfe}
+.b.ok{background:#e8fff7;color:#047857;border-color:#bbf7d0}
+.b.warn{background:#fff7e8;color:#b45309;border-color:#fde68a}
+.tn{width:60px;height:44px;border-radius:8px;border:1px solid var(--line);background:#fff;position:relative;overflow:hidden}
+.tn::before{content:'';position:absolute;inset:0;background:linear-gradient(#e9eef7,#f6f8fb)}
+.tn .bar{position:absolute;left:6px;right:6px;height:4px;background:#d8dee9;border-radius:3px}
+.tn .bar.b1{top:6px}.tn .bar.b2{top:14px;width:60%}.tn .kv{position:absolute;left:6px;right:6px;top:22px;height:14px;background:#e1e7f0;border-radius:4px}
+/* connect/drag */
+.node.dragging{cursor:grabbing;z-index:10;box-shadow:0 12px 30px rgba(2,6,23,.15)}
+.handle{position:absolute;width:10px;height:10px;background:var(--accent);border-radius:50%;border:2px solid #fff;opacity:0;transition:.2s;z-index:11}
+.node:hover .handle{opacity:1}
+.handle.p{top:-6px;left:50%;transform:translateX(-50%)}
+.handle.c{bottom:-6px;left:50%;transform:translateX(-50%)}
+.path{stroke:#9fb7ff;stroke-width:2;fill:none}
+/* list view */
+.table{width:100%;border-collapse:separate;border-spacing:0 8px;font-size:13px;margin-top:12px}
+.table th{padding:8px;color:#475569;text-align:left}
+.table td{padding:10px;background:#fff;border:1px solid var(--line)}
+.table tr td:first-child{border-radius:10px 0 0 10px}
+.table tr td:last-child{border-radius:0 10px 10px 0}
+/* detail */
+.detail{position:fixed;top:0;right:-500px;width:500px;height:100vh;background:#fff;border-left:1px solid var(--line);
+  box-shadow:-10px 0 30px rgba(2,6,23,.08);transition:right .25s;z-index:30;padding:22px;overflow:auto}
+.detail.open{right:0}
+.grid{display:grid;grid-template-columns:120px 1fr;gap:10px;font-size:14px}
+.k{color:#64748b}
+.badge-wrap{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 14px}
+.chip{display:inline-block;padding:8px 12px;border-radius:999px;border:1px solid #d9e0ea;background:#eef2f7;color:#334155;font-size:13px}
+.subttl{font-weight:700;color:#4b5563;margin:18px 0 10px}
+.wf-thumb{border:1px solid var(--line);border-radius:12px;background:#fff;padding:12px;max-width:150px}
+.wf-h1{height:14px;background:#e5e7eb;border-radius:8px;width:48%;margin-bottom:10px}
+.wf-h2{height:12px;background:#e5e7eb;border-radius:8px;width:70%;margin-bottom:16px}
+.wf-hero{height:120px;background:#e3e7ee;border-radius:12px;margin-bottom:16px}
+.card{border:1px solid var(--line);border-radius:16px;padding:16px}
+.card .img{height:80px;background:#e5e8ee;border-radius:14px;margin-bottom:12px}
+.bar{height:12px;background:#e5e7eb;border-radius:8px;margin:8px 0}
+.bar.s{width:64%}.bar.xs{width:46%}
+</style>
+</head>
+<body>
+<div class="container">
+  <aside class="sidebar">
+    <div class="logo"><i class="fa-solid fa-sitemap"></i> <span>System Map v5→v7 연결 통합</span></div>
+    <div class="nav-item active" data-page="sitemap"><i class="fa-solid fa-diagram-project"></i> 사이트맵</div>
+    <div class="nav-item" data-page="dashboard"><i class="fa-solid fa-gauge-high"></i> 대시보드</div>
+    <div class="nav-item" data-page="analytics"><i class="fa-solid fa-chart-line"></i> 성능 분석</div>
+    <div class="nav-item" data-page="content"><i class="fa-solid fa-list-check"></i> 점검 항목</div>
+  </aside>
+  <main class="main">
+    <section class="page active" id="sitemap">
+      <div class="header">
+        <div>
+          <div class="page-title">MX 시스템맵 (v5 유지 + v7 연결)</div>
+          <div class="page-subtitle">필터/검색/뷰(v5) + 드래그·연결/해제(v7)</div>
+        </div>
+        <button class="viewbtn full" id="btnFull"><i class="fa-solid fa-expand"></i> 전체화면</button>
+      </div>
+      <div class="controls">
+        <div class="search"><i class="fa-solid fa-magnifying-glass"></i><input id="q" placeholder="검색…"></div>
+        <div class="pill on" data-lv="all">전체 레벨</div>
+        <div class="pill" data-lv="0">L0</div><div class="pill" data-lv="1">L1</div><div class="pill" data-lv="2">L2</div><div class="pill" data-lv="3">L3</div><div class="pill" data-lv="4">L4</div>
+        <div class="pill on" data-cl="all">전체 카테고리</div>
+        <div class="pill" data-cl="smartphones">스마트폰</div><div class="pill" data-cl="tablets">태블릿</div><div class="pill" data-cl="book">Book/PC</div><div class="pill" data-cl="watch">워치</div><div class="pill" data-cl="buds">버즈</div><div class="pill" data-cl="acc">액세서리</div>
+        <div class="viewbtn on" data-view="tree"><i class="fa-solid fa-diagram-project"></i> 계층</div>
+        <div class="viewbtn" data-view="list"><i class="fa-solid fa-table-list"></i> 목록</div>
+      </div>
+      <div class="wrap">
+        <div class="stage" id="stage">
+          <div id="bands"></div>
+          <svg id="links"></svg>
+        </div>
+        <table class="table" id="list" style="display:none">
+          <thead><tr><th>레벨</th><th>페이지</th><th>카테고리</th><th>상태</th><th>DS</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- 상세 패널 -->
+<aside class="detail" id="detail">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;border-bottom:1px solid var(--line);padding-bottom:8px">
+    <strong id="d-title">상세</strong>
+    <button class="viewbtn" id="d-close"><i class="fa-solid fa-xmark"></i></button>
+  </div>
+  <div class="grid">
+    <div class="k">ID</div><div id="d-id">-</div>
+    <div class="k">레벨</div><div id="d-level">-</div>
+    <div class="k">카테고리</div><div id="d-cluster">-</div>
+    <div class="k">상태</div><div id="d-status">-</div>
+    <div class="k">DS</div><div id="d-ds">-</div>
+  </div>
+  <div class="subttl">컴포넌트(샘플)</div>
+  <div class="badge-wrap" id="compBadges"></div>
+  <div class="subttl">와이어프레임 썸네일</div>
+  <div class="wf-thumb" id="wfThumb">
+    <div class="wf-h1"></div><div class="wf-h2"></div><div class="wf-hero"></div>
+    <div class="card"><div class="img"></div><div class="bar s"></div><div class="bar xs"></div></div>
+  </div>
+  <div class="subttl">연결 관리</div>
+  <div class="badge-wrap">
+    <select id="linkSelect" class="chip" style="background:#fff;border:1px solid var(--line)"></select>
+    <button class="viewbtn" id="btnAddLink">부모로 연결</button>
+    <button class="viewbtn" id="btnRemoveLink">부모 연결 해제</button>
+  </div>
+</aside>
+
+<script>
+/* ---------- v5의 노드 세트 유지 ---------- */
+const BAND_H = 200, ROW_Y = 100;
+const nodes = [
+  {id:'home', title:'Home', level:0, type:'main', cluster:'global', status:'ok', ds:'v2.0'},
+  {id:'smartphones', title:'Smartphones', level:1, type:'category', cluster:'smartphones', status:'ok', ds:'v2.0', parent:'home'},
+  {id:'tablets', title:'Tablets', level:1, type:'category', cluster:'tablets', status:'ok', ds:'v2.0', parent:'home'},
+  {id:'book', title:'Book / PC', level:1, type:'category', cluster:'book', status:'ok', ds:'v2.0', parent:'home'},
+  {id:'watch', title:'Watch', level:1, type:'category', cluster:'watch', status:'ok', ds:'v2.0', parent:'home'},
+  {id:'buds', title:'Buds', level:1, type:'category', cluster:'buds', status:'ok', ds:'v2.0', parent:'home'},
+  {id:'acc', title:'Accessories', level:1, type:'category', cluster:'acc', status:'ok', ds:'v2.0', parent:'home'},
+
+  {id:'sp-all', title:'All', level:2, type:'page', cluster:'smartphones', status:'ok', ds:'v2.0', parent:'smartphones'},
+  {id:'sp-s', title:'Galaxy S', level:2, type:'page', cluster:'smartphones', status:'ok', ds:'v2.0', parent:'smartphones'},
+  {id:'sp-z', title:'Galaxy Z', level:2, type:'page', cluster:'smartphones', status:'ok', ds:'v2.0', parent:'smartphones'},
+  {id:'sp-a', title:'Galaxy A', level:2, type:'page', cluster:'smartphones', status:'warn', ds:'v2.0', parent:'smartphones'},
+
+  {id:'tb-all', title:'All', level:2, type:'page', cluster:'tablets', status:'ok', ds:'v2.0', parent:'tablets'},
+
+  {id:'pd-flag-s', title:'Flagship PD (S)', level:3, type:'page', cluster:'smartphones', status:'ok', ds:'v2.0', parent:'sp-s'},
+  {id:'buy-flag-s', title:'Buying PD (S)', level:4, type:'page', cluster:'smartphones', status:'ok', ds:'v2.0', parent:'pd-flag-s'}
+];
+/* 초기 좌표 */
+const pos = {
+  home:{x:220,y:bandTop(0)+ROW_Y},
+  smartphones:{x:520,y:bandTop(1)+ROW_Y}, tablets:{x:820,y:bandTop(1)+ROW_Y}, book:{x:1120,y:bandTop(1)+ROW_Y},
+  watch:{x:1420,y:bandTop(1)+ROW_Y}, buds:{x:1720,y:bandTop(1)+ROW_Y}, acc:{x:2020,y:bandTop(1)+ROW_Y},
+  'sp-all':{x:520,y:bandTop(2)+ROW_Y}, 'sp-s':{x:780,y:bandTop(2)+ROW_Y}, 'sp-z':{x:1040,y:bandTop(2)+ROW_Y}, 'sp-a':{x:1300,y:bandTop(2)+ROW_Y},
+  'tb-all':{x:820,y:bandTop(2)+ROW_Y},
+  'pd-flag-s':{x:780,y:bandTop(3)+ROW_Y}, 'buy-flag-s':{x:780,y:bandTop(4)+ROW_Y}
+};
+
+/* 상태 */
+let view='tree', lvFilter='all', clFilter='all', q='';
+const stage = document.getElementById('stage'), bands = document.getElementById('bands'), svg = document.getElementById('links');
+const listTbody = document.querySelector('#list tbody');
+const detail = document.getElementById('detail');
+let active = null;
+
+/* 유틸 */
+function bandTop(l){return l*BAND_H;}
+function ensureStage(){stage.style.minHeight=(bandTop(4)+BAND_H+60)+'px';svg.setAttribute('width',stage.scrollWidth);svg.setAttribute('height',stage.scrollHeight);}
+function renderBands(){
+  bands.innerHTML='';
+  for(let l=0;l<=4;l++){
+    const d=document.createElement('div');d.className='band';d.style.top=bandTop(l)+'px';d.style.height=BAND_H+'px';
+    const lab=document.createElement('span');lab.className='bandlabel';lab.textContent=`L${l}`;
+    d.appendChild(lab);bands.appendChild(d);
+  }
+}
+function nodeHTML(n){
+  if(n.type==='main') return `<div class="title"><i class="fa-solid fa-house"></i> ${n.title}</div><div class="badges"><span class="b v2">${n.ds}</span><span class="b ok">정상</span></div>`;
+  const tn = `<span class="tn"><span class="bar b1"></span><span class="bar b2"></span><span class="kv"></span></span>`;
+  return `${tn}<div><div class="title"><i class="fa-regular fa-file"></i> ${n.title}</div>
+  <div class="badges"><span class="b v2">${n.ds}</span><span class="b ${n.status==='ok'?'ok':'warn'}">${n.status==='ok'?'정상':'주의'}</span></div></div>`;
+}
+function passFilters(n){
+  if(view==='list') return true;
+  if(lvFilter!=='all' && n.level!=lvFilter) return false;
+  if(clFilter!=='all' && n.cluster!==clFilter) return false;
+  if(q && !(`${n.title} ${n.cluster}`.toLowerCase().includes(q))) return false;
+  return true;
+}
+
+/* 링크 그리기 */
+function drawLinks(){
+  svg.innerHTML='';
+  nodes.forEach(n=>{
+    if(!n.parent) return;
+    const pe=document.querySelector(`.node[data-id="${n.parent}"]`), ce=document.querySelector(`.node[data-id="${n.id}"]`);
+    if(!pe||!ce) return;
+    const ps=pe.getBoundingClientRect(), cs=ce.getBoundingClientRect(), ss=stage.getBoundingClientRect();
+    const x1 = ps.left + ps.width/2 - ss.left + stage.scrollLeft;
+    const y1 = ps.bottom - ss.top + stage.scrollTop;
+    const x2 = cs.left + cs.width/2 - ss.left + stage.scrollLeft;
+    const y2 = cs.top - ss.top + stage.scrollTop;
+    const p=document.createElementNS('http://www.w3.org/2000/svg','path');
+    p.setAttribute('d',`M ${x1} ${y1} C ${x1} ${y1+60}, ${x2} ${y2-60}, ${x2} ${y2}`);
+    p.setAttribute('class','path'); svg.appendChild(p);
+  });
+}
+
+/* 상세 열기 */
+function openDetail(n){
+  active = n;
+  document.getElementById('d-title').textContent=n.title;
+  document.getElementById('d-id').textContent=n.id;
+  document.getElementById('d-level').textContent='L'+n.level;
+  document.getElementById('d-cluster').textContent=n.cluster;
+  document.getElementById('d-status').textContent=n.status;
+  document.getElementById('d-ds').textContent=n.ds;
+  document.getElementById('compBadges').innerHTML=['C004 Category HScroll','FT02 Feature Grid','PD01 Product Cards'].map(x=>`<span class="chip">${x}</span>`).join('');
+  // 연결 대상 목록
+  const sel=document.getElementById('linkSelect'); sel.innerHTML='';
+  nodes.forEach(x=>{ if(x.id!==n.id) sel.insertAdjacentHTML('beforeend', `<option value="${x.id}">${x.title}</option>`); });
+  detail.classList.add('open');
+}
+document.getElementById('d-close').onclick=()=>detail.classList.remove('open');
+
+/* 렌더링 */
+function render(){
+  ensureStage(); renderBands();
+  document.querySelectorAll('.node').forEach(e=>e.remove());
+  nodes.forEach(n=>{
+    if(!passFilters(n)) return;
+    const el=document.createElement('div'); el.className='node'; if(n.type==='category') el.classList.add('category'); if(n.type==='main') el.classList.add('main');
+    el.dataset.id=n.id; el.style.left=(pos[n.id]?.x||200)+'px'; el.style.top=(bandTop(n.level)+ROW_Y)+'px';
+    el.innerHTML=nodeHTML(n);
+    // handles
+    const hp=document.createElement('div'); hp.className='handle p'; el.appendChild(hp);
+    const hc=document.createElement('div'); hc.className='handle c'; el.appendChild(hc);
+    el.addEventListener('click',()=>openDetail(n));
+    // drag
+    let dragging=false, sx=0, sy=0;
+    el.addEventListener('mousedown',e=>{ if(e.target.classList.contains('handle')) return; dragging=true; el.classList.add('dragging'); sx=e.clientX; sy=e.clientY; e.preventDefault();});
+    window.addEventListener('mousemove',e=>{ if(!dragging) return; const dx=e.clientX-sx, dy=e.clientY-sy; sx=e.clientX; sy=e.clientY; el.style.left=(parseFloat(el.style.left)+dx)+'px'; pos[n.id]={x:parseFloat(el.style.left),y:parseFloat(el.style.top)}; drawLinks();});
+    window.addEventListener('mouseup',()=>{ if(dragging){ dragging=false; el.classList.remove('dragging'); } });
+    // connect
+    hc.addEventListener('mousedown',e=>{connecting={on:true,from:n.id}; e.stopPropagation();});
+    hp.addEventListener('mouseup',e=>{ if(connecting.on && connecting.from!==n.id){ const child=nodes.find(x=>x.id===connecting.from); child.parent=n.id; drawLinks(); } connecting={on:false,from:null}; e.stopPropagation();});
+    stage.appendChild(el);
+  });
+  drawLinks();
+  // 목록
+  listTbody.innerHTML = nodes.map(n=>`<tr><td>L${n.level}</td><td>${n.title}</td><td>${n.cluster}</td><td>${n.status}</td><td>${n.ds}</td></tr>`).join('');
+}
+let connecting={on:false,from:null};
+render();
+
+/* ---- 필터/검색/뷰 ---- */
+document.querySelectorAll('.pill').forEach(p=>p.addEventListener('click',()=>{
+  if(p.dataset.lv!==undefined){ document.querySelectorAll('.pill[data-lv]').forEach(x=>x.classList.remove('on')); p.classList.add('on'); lvFilter=p.dataset.lv; }
+  if(p.dataset.cl!==undefined){ document.querySelectorAll('.pill[data-cl]').forEach(x=>x.classList.remove('on')); p.classList.add('on'); clFilter=p.dataset.cl; }
+  render();
+}));
+document.getElementById('q').addEventListener('input',e=>{ q=e.target.value.trim().toLowerCase(); render(); });
+document.querySelectorAll('.viewbtn[data-view]').forEach(v=>v.addEventListener('click',()=>{
+  document.querySelectorAll('.viewbtn[data-view]').forEach(x=>x.classList.remove('on')); v.classList.add('on'); view=v.dataset.view;
+  document.getElementById('stage').style.display = (view==='tree')?'block':'none';
+  document.getElementById('list').style.display  = (view==='list')?'table':'none';
+}));
+/* ---- 페이지 전환 ---- */
+document.querySelectorAll('.nav-item').forEach(n=>n.onclick=()=>{
+  document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active')); n.classList.add('active');
+  const id=n.dataset.page; document.querySelectorAll('.page').forEach(p=>p.classList.remove('active')); document.getElementById(id).classList.add('active');
+});
+/* ---- 전체화면 ---- */
+document.getElementById('btnFull').onclick=()=>{ const st=document.getElementById('stage'); if(!document.fullscreenElement){ st.requestFullscreen?.(); } else { document.exitFullscreen?.(); } };
+/* ---- 상세: 연결 버튼 ---- */
+document.getElementById('btnAddLink').onclick=()=>{ if(!active) return; const tid=document.getElementById('linkSelect').value; if(!tid) return; const t=nodes.find(x=>x.id===tid); t.parent=active.id; render(); };
+document.getElementById('btnRemoveLink').onclick=()=>{ if(!active) return; nodes.forEach(x=>{ if(x.parent===active.id) x.parent=null; }); render(); };
+</script>
+</body>
+</html>

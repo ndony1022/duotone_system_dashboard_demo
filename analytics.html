@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>S.com Analytics</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
+<style>
+:root{
+  --primary:#006BEA;--secondary:#0074c4;--accent:#00a4e4;--ink:#1f2a37;--muted:#64748b;
+  --ok:#21c189;--warn:#f59e0b;--err:#ef4444;--panel:#fff;--bg:#f5f7fb;--line:#e5e7eb;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,'Apple SD Gothic Neo','Malgun Gothic',sans-serif}
+.container{display:grid;grid-template-columns:280px 1fr;min-height:100vh}
+.sidebar{background:#000;color:#fff}
+.logo{padding:18px;border-bottom:1px solid rgba(255,255,255,.15);display:flex;align-items:center;gap:10px;font-weight:800}
+.nav-section{padding:10px}
+.nav-title{opacity:.75;font-size:12px;margin:10px 6px}
+.nav-item{padding:10px 12px;border-radius:10px;display:flex;gap:10px;align-items:center;cursor:pointer}
+.nav-item:hover,.nav-item.active{background:rgba(255,255,255,.12)}
+.main-content{padding:22px 26px}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.page-title{font-size:22px;font-weight:800;padding: 4px 0;}
+.page-subtitle{color:#94a3b8;font-size:13px;margin-top:4px}
+
+/* 성능 메트릭 카드 */
+.metrics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px;margin-bottom:32px}
+.metric-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:24px;box-shadow:0 10px 30px rgba(2,6,23,.06)}
+.metric-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.metric-title{font-size:14px;color:#64748b;font-weight:600}
+.metric-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px}
+.metric-icon.speed{background:#f1f8ff;color:#006BEA}
+.metric-icon.uptime{background:#f0fdf4;color:#21c189}
+.metric-icon.errors{background:#fef2f2;color:#ef4444}
+.metric-icon.requests{background:#fef3c7;color:#f59e0b}
+.metric-value{font-size:28px;font-weight:800;margin-bottom:8px}
+.metric-unit{font-size:14px;color:#64748b;font-weight:400}
+.metric-status{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600}
+.metric-status.good{color:#21c189}
+.metric-status.warning{color:#f59e0b}
+.metric-status.critical{color:#ef4444}
+
+/* 차트 섹션 */
+.chart-section{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:32px}
+.chart-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:24px;box-shadow:0 10px 30px rgba(2,6,23,.06)}
+.chart-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.chart-title{font-size:16px;font-weight:700}
+.chart-period{display:flex;gap:8px}
+.period-btn{padding:6px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:12px;cursor:pointer}
+.period-btn.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+
+/* 성능 차트 */
+.performance-chart{width:100%;height:200px;background:#f8fafc;border-radius:8px;position:relative;overflow:hidden}
+.performance-chart svg{width:100%;height:100%}
+.performance-chart path{stroke:var(--primary);stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.performance-chart .area{fill:url(#gradient);opacity:0.3}
+
+/* 서버 상태 테이블 */
+.server-table{background:#fff;border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 10px 30px rgba(2,6,23,.06)}
+.table-header{padding:20px 24px;border-bottom:1px solid var(--line)}
+.table-title{font-size:16px;font-weight:700}
+.table{width:100%;border-collapse:collapse}
+.table th,.table td{padding:12px 16px;text-align:left;border-bottom:1px solid var(--line)}
+.table th{background:#f8fafc;font-weight:600;font-size:13px;color:#64748b}
+.table td{font-size:13px}
+.status-badge{padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600}
+.status-badge.online{background:#f0fdf4;color:#21c189}
+.status-badge.warning{background:#fef3c7;color:#f59e0b}
+.status-badge.offline{background:#fef2f2;color:#ef4444}
+</style>
+</head>
+<body>
+<div class="container">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="logo"><i class="fa-solid fa-sitemap"></i> <span>S.com Management</span></div>
+    <div class="nav-section">
+      <div class="nav-title">메뉴</div>
+      <div class="nav-item" data-page="sitemap"><i class="fa-solid fa-diagram-project"></i> 사이트맵</div>
+      <div class="nav-item" data-page="dashboard"><i class="fa-solid fa-gauge-high"></i> 대시보드</div>
+      <div class="nav-item active" data-page="analytics"><i class="fa-solid fa-chart-line"></i> 성능 분석</div>
+      <div class="nav-item" data-page="content"><i class="fa-solid fa-list-check"></i> 점검 항목</div>
+    </div>
+  </aside>
+
+  <!-- 메인 콘텐츠 -->
+  <main class="main-content">
+    <header class="header">
+      <div>
+        <h1 class="page-title">Analytics</h1>
+        <p class="page-subtitle">시스템 성능 및 서버 상태 분석</p>
+      </div>
+    </header>
+
+    <!-- 성능 메트릭 -->
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-header">
+          <div class="metric-title">평균 응답 시간</div>
+          <div class="metric-icon speed">
+            <i class="fas fa-tachometer-alt"></i>
+          </div>
+        </div>
+        <div class="metric-value">245<span class="metric-unit">ms</span></div>
+        <div class="metric-status good">
+          <i class="fas fa-check-circle"></i>
+          <span>정상 범위</span>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-header">
+          <div class="metric-title">서버 가동률</div>
+          <div class="metric-icon uptime">
+            <i class="fas fa-server"></i>
+          </div>
+        </div>
+        <div class="metric-value">99.8<span class="metric-unit">%</span></div>
+        <div class="metric-status good">
+          <i class="fas fa-check-circle"></i>
+          <span>안정적</span>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-header">
+          <div class="metric-title">오류율</div>
+          <div class="metric-icon errors">
+            <i class="fas fa-exclamation-triangle"></i>
+          </div>
+        </div>
+        <div class="metric-value">0.12<span class="metric-unit">%</span></div>
+        <div class="metric-status warning">
+          <i class="fas fa-exclamation-circle"></i>
+          <span>주의 필요</span>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-header">
+          <div class="metric-title">초당 요청 수</div>
+          <div class="metric-icon requests">
+            <i class="fas fa-chart-line"></i>
+          </div>
+        </div>
+        <div class="metric-value">1,847<span class="metric-unit">req/s</span></div>
+        <div class="metric-status good">
+          <i class="fas fa-check-circle"></i>
+          <span>정상</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 차트 섹션 -->
+    <div class="chart-section">
+      <div class="chart-card">
+        <div class="chart-header">
+          <div class="chart-title">응답 시간 트렌드</div>
+          <div class="chart-period">
+            <div class="period-btn active">1시간</div>
+            <div class="period-btn">24시간</div>
+            <div class="period-btn">7일</div>
+          </div>
+        </div>
+        <div class="performance-chart">
+          <svg viewBox="0 0 400 200">
+            <defs>
+              <linearGradient id="gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" style="stop-color:#006BEA;stop-opacity:0.3" />
+                <stop offset="100%" style="stop-color:#006BEA;stop-opacity:0.1" />
+              </linearGradient>
+            </defs>
+            <path class="area" d="M0,150 L50,120 L100,140 L150,100 L200,80 L250,90 L300,60 L350,70 L400,50 L400,200 L0,200 Z"></path>
+            <path d="M0,150 L50,120 L100,140 L150,100 L200,80 L250,90 L300,60 L350,70 L400,50"></path>
+          </svg>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-header">
+          <div class="chart-title">서버 부하 분포</div>
+          <div class="chart-period">
+            <div class="period-btn active">실시간</div>
+            <div class="period-btn">평균</div>
+          </div>
+        </div>
+        <div class="performance-chart">
+          <svg viewBox="0 0 400 200">
+            <defs>
+              <linearGradient id="gradient2" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" style="stop-color:#21c189;stop-opacity:0.3" />
+                <stop offset="100%" style="stop-color:#21c189;stop-opacity:0.1" />
+              </linearGradient>
+            </defs>
+            <path class="area" d="M0,180 L50,160 L100,140 L150,120 L200,100 L250,80 L300,60 L350,40 L400,20 L400,200 L0,200 Z"></path>
+            <path d="M0,180 L50,160 L100,140 L150,120 L200,100 L250,80 L300,60 L350,40 L400,20"></path>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- 서버 상태 테이블 -->
+    <div class="server-table">
+      <div class="table-header">
+        <div class="table-title">서버 상태</div>
+      </div>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>서버명</th>
+            <th>상태</th>
+            <th>CPU</th>
+            <th>메모리</th>
+            <th>디스크</th>
+            <th>응답시간</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>web-server-01</td>
+            <td><span class="status-badge online">온라인</span></td>
+            <td>45%</td>
+            <td>67%</td>
+            <td>23%</td>
+            <td>120ms</td>
+          </tr>
+          <tr>
+            <td>web-server-02</td>
+            <td><span class="status-badge online">온라인</span></td>
+            <td>38%</td>
+            <td>72%</td>
+            <td>31%</td>
+            <td>135ms</td>
+          </tr>
+          <tr>
+            <td>db-server-01</td>
+            <td><span class="status-badge warning">경고</span></td>
+            <td>78%</td>
+            <td>85%</td>
+            <td>45%</td>
+            <td>280ms</td>
+          </tr>
+          <tr>
+            <td>cache-server-01</td>
+            <td><span class="status-badge online">온라인</span></td>
+            <td>25%</td>
+            <td>42%</td>
+            <td>18%</td>
+            <td>45ms</td>
+          </tr>
+          <tr>
+            <td>load-balancer-01</td>
+            <td><span class="status-badge online">온라인</span></td>
+            <td>15%</td>
+            <td>28%</td>
+            <td>12%</td>
+            <td>25ms</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+
+<script>
+// 네비게이션 처리
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', function() {
+    const page = this.dataset.page;
+    if(page === 'sitemap') {
+      window.location.href = 'raw_v2.html';
+    } else if(page === 'dashboard') {
+      window.location.href = 'dashboard.html';
+    } else if(page === 'analytics') {
+      window.location.href = 'analytics.html';
+    } else if(page === 'content') {
+      window.location.href = 'content.html';
+    }
+  });
+});
+
+// 기간 버튼 토글
+document.querySelectorAll('.period-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const parent = this.closest('.chart-period');
+    parent.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+  });
+});
+</script>
+</body>
+</html>
+

@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>삼성닷컴 시스템맵 – MX 데모 v7 (고정 밴드·균등 간격·연결/해제)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
+<style>
+:root{
+  --primary:#1428a0;--secondary:#0074c4;--accent:#00a4e4;--ink:#1f2a37;--muted:#64748b;
+  --ok:#21c189;--warn:#f59e0b;--err:#ef4444;--panel:#fff;--bg:#f5f7fb;--line:#e5e7eb;
+  --fs-backdrop:#f6f5ef;--bandBg:rgba(2,6,23,.015);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,'Apple SD Gothic Neo','Malgun Gothic',sans-serif}
+.container{display:grid;grid-template-columns:280px 1fr;min-height:100vh}
+.sidebar{background:var(--primary);color:#fff}
+.logo{padding:18px;border-bottom:1px solid rgba(255,255,255,.15);display:flex;align-items:center;gap:10px;font-weight:800}
+.nav-section{padding:10px}
+.nav-title{opacity:.75;font-size:12px;margin:10px 6px}
+.nav-item{padding:10px 12px;border-radius:10px;display:flex;gap:10px;align-items:center;cursor:pointer}
+.nav-item:hover,.nav-item.active{background:rgba(255,255,255,.12)}
+.main-content{padding:22px 26px}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.page-title{font-size:22px;font-weight:800}
+.page-subtitle{color:#94a3b8;font-size:13px;margin-top:4px}
+.btn{border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 12px;display:inline-flex;gap:8px;align-items:center;cursor:pointer}
+.btn.primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+.controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0 16px}
+.search-box{position:relative}
+.search-box input{padding:10px 12px 10px 36px;width:260px;border:1px solid var(--line);border-radius:10px;background:#fff}
+.search-box i{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#9aa4b2}
+.pill{padding:7px 12px;border:1px solid var(--line);border-radius:999px;background:#fff;font-size:12px;cursor:pointer}
+.pill.on{background:#111827;color:#fff;border-color:#111827}
+.visualization-area{position:relative;background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 10px 30px rgba(2,6,23,.06)}
+.fullscreen-btn{position:absolute;right:16px;top:16px;z-index:5}
+
+/* Stage & Bands */
+.stage{position:relative;height:740px;border:1px dashed var(--line);border-radius:12px;overflow:auto;background:
+  radial-gradient(circle at 24px 24px, rgba(20,40,160,.03) 0 2px, transparent 2px 100%) 0 0/48px 48px}
+.stage:fullscreen{border:none}
+.stage::backdrop{background:var(--fs-backdrop)}
+#bands{position:absolute;inset:0;z-index:0;pointer-events:none}
+.level-band{position:absolute;left:0;width:100%;background:var(--bandBg);border-top:1px dashed var(--line);border-bottom:1px dashed var(--line)}
+.level-label{position:absolute;left:14px;top:10px;font-size:14px;color:#5b6b7e;font-weight:800}
+.level-caption{font-weight:600;color:#7b8aa0}
+#linksLayer{position:absolute;inset:0;pointer-events:none;z-index:1}
+#linksCanvas{width:100%;height:100%}
+
+/* Nodes */
+.node{position:absolute;min-width:240px;max-width:280px;background:#fff;border:1px solid var(--line);border-radius:14px;
+  padding:12px 14px;font-size:13px;box-shadow:0 8px 20px rgba(2,6,23,.08);
+  display:grid;grid-template-columns:64px 1fr;gap:12px;cursor:pointer;transition:.15s;z-index:2}
+.node:hover{transform:translateY(-2px)}
+.node.category{border:2px solid var(--secondary);color:#0e4a6e;font-weight:700;background:#f1f8ff}
+.node.main{background:var(--primary);color:#fff;font-weight:800;grid-template-columns:1fr}
+.node .title{display:flex;align-items:center;gap:6px}
+.badges{margin-top:6px;display:flex;gap:6px;flex-wrap:wrap}
+.b{font-size:11px;border-radius:999px;padding:3px 8px;border:1px solid var(--line);background:#f8fafc;color:#334155}
+.b.ok{background:#e8fff7;color:#047857;border-color:#bbf7d0}
+.b.warn{background:#fff7e8;color:#b45309;border-color:#fde68a}
+
+/* Node thumbnail */
+.tn{width:64px;height:48px;border-radius:9px;border:1px solid var(--line);background:#fff;display:block;position:relative;overflow:hidden}
+.tn::before{content:'';position:absolute;inset:0;background:linear-gradient(#e9eef7,#f6f8fb)}
+.tn .bar{position:absolute;left:7px;right:7px;height:4px;background:#d8dee9;border-radius:3px}
+.tn .bar.b1{top:7px}
+.tn .bar.b2{top:16px;width:60%}
+.tn .kv{position:absolute;left:7px;right:7px;top:26px;height:14px;background:#e1e7f0;border-radius:4px}
+
+/* Drag/connect */
+.node.dragging{cursor:grabbing;z-index:10;box-shadow:0 12px 30px rgba(2,6,23,.15)}
+.connector-handle{position:absolute;width:10px;height:10px;background:var(--accent);border-radius:50%;
+  border:2px solid #fff;opacity:0;transition:.2s;z-index:11}
+.node:hover .connector-handle{opacity:1}
+.connector-handle.parent{top:-6px;left:50%;transform:translateX(-50%)}
+.connector-handle.child{bottom:-6px;left:50%;transform:translateX(-50%)}
+.connecting-line{stroke:var(--accent);stroke-width:2;fill:none}
+
+/* Detail panel */
+.detail-panel{position:fixed;top:0;right:-520px;width:520px;height:100vh;background:#fff;border-left:1px solid var(--line);
+  box-shadow:-10px 0 30px rgba(2,6,23,.08);transition:right .25s;z-index:30;padding:22px;overflow:auto}
+.detail-panel.open{right:0}
+.detail-panel.fs{position:fixed}
+.panel-h{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:14px}
+.grid{display:grid;grid-template-columns:120px 1fr;gap:10px;font-size:14px}
+.k{color:#64748b}
+.status-badge{padding:4px 10px;border-radius:999px;font-size:12px;border:1px solid var(--line)}
+.sb-ok{background:#e8fff7;color:#047857}.sb-warn{background:#fff7e8;color:#b45309}.sb-err{background:#fff1f2;color:#b91c1c}
+.badge-wrap{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 14px}
+.chip{display:inline-block;padding:8px 12px;border-radius:999px;border:1px solid #d9e0ea;background:#eef2f7;color:#334155;font-size:13px}
+.chip-group{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.chip-group .chip{display:flex;align-items:center;gap:4px}
+.chip-group .chip i{cursor:pointer;color:var(--muted)}
+.chip-group .chip i:hover{color:var(--ink)}
+
+/* Modal */
+.modal{position:fixed;inset:0;background:rgba(2,6,23,.5);display:none;align-items:center;justify-content:center;z-index:40}
+.modal.show{display:flex}
+.wf{width:900px;max-width:92vw;height:620px;background:#fff;border-radius:16px;box-shadow:0 20px 60px rgba(2,6,23,.25);overflow:hidden;display:grid;grid-template-rows:52px 1fr}
+.wf-h{display:flex;align-items:center;justify-content:space-between;background:#0b1227;color:#cbd5e1;padding:0 14px}
+.wf-body{background:linear-gradient(#f3f6fb,#eef2f7);padding:16px;overflow:auto}
+.wf-thumb{border:1px solid var(--line);border-radius:12px;background:#fff;padding:18px}
+.wf-h1{height:14px;background:#e5e7eb;border-radius:8px;width:48%;margin-bottom:10px}
+.wf-h2{height:12px;background:#e5e7eb;border-radius:8px;width:70%;margin-bottom:16px}
+.wf-hero{height:280px;background:#e3e7ee;border-radius:20px;margin-bottom:16px}
+.wf-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.card{border:1px solid var(--line);border-radius:16px;padding:16px}
+.card .img{height:120px;background:#e5e8ee;border-radius:14px;margin-bottom:12px}
+.bar{height:12px;background:#e5e7eb;border-radius:8px;margin:8px 0}
+.bar.s{width:64%}.bar.xs{width:46%}
+
+.footer{text-align:center;padding:16px;color:#94a3b8;font-size:12px;margin-top:16px}
+.page{display:none}.page.active{display:block}
+
+@media (max-width:1100px){
+  .container{grid-template-columns:1fr}
+  .sidebar{display:none}
+  .stage{height:860px}
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <aside class="sidebar">
+    <div class="logo"><i class="fa-solid fa-sitemap"></i> <span>Samsung.com System Map</span></div>
+    <div class="nav-section">
+      <div class="nav-title">메뉴</div>
+      <div class="nav-item active" data-page="sitemap"><i class="fa-solid fa-diagram-project"></i> 사이트맵</div>
+      <div class="nav-item" data-page="dashboard"><i class="fa-solid fa-gauge-high"></i> 대시보드</div>
+      <div class="nav-item" data-page="analytics"><i class="fa-solid fa-chart-line"></i> 성능 분석</div>
+      <div class="nav-item" data-page="content"><i class="fa-solid fa-list-check"></i> 점검 항목</div>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    <section class="page active" id="sitemap">
+      <div class="header">
+        <div>
+          <div class="page-title">시각적 시스템맵 – MX 중심 (v7)</div>
+          <div class="page-subtitle">레벨 밴드 0부터 정렬 · 밴드 간 여백 제거 · 노드 균등 간격 · 연결/해제 유지</div>
+        </div>
+        <div>
+          <button class="btn" id="btnExport"><i class="fa-regular fa-circle-down"></i> JSON 내보내기</button>
+          <button class="btn primary" id="btnReload"><i class="fa-solid fa-rotate"></i> 새로 고침</button>
+        </div>
+      </div>
+
+      <div class="controls">
+        <div class="search-box">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input id="searchInput" placeholder="페이지/카테고리 검색 (더미)"/>
+        </div>
+        <div class="pill on" data-level="all">전체 레벨</div>
+        <div class="pill" data-level="1">L1</div>
+        <div class="pill" data-level="2">L2</div>
+        <div class="pill" data-level="3">L3</div>
+        <div class="pill" data-level="4">L4</div>
+      </div>
+
+      <div class="visualization-area">
+        <button class="fullscreen-btn btn" id="btnFull"><i class="fa-solid fa-expand"></i> 전체화면</button>
+        <div class="stage" id="stage">
+          <div id="bands"></div>
+          <div id="nodesLayer"></div>
+          <div id="linksLayer"><svg id="linksCanvas"></svg></div>
+        </div>
+      </div>
+
+      <div class="footer">© 2025 Samsung.com System Map Demo • MX Focus • Front-only</div>
+    </section>
+  </main>
+</div>
+
+<!-- Detail Panel -->
+<aside class="detail-panel" id="detailPanel">
+  <div class="panel-h">
+    <strong id="detailTitle">페이지 상세</strong>
+    <button class="btn" id="btnClosePanel"><i class="fa-solid fa-xmark"></i></button>
+  </div>
+  <div class="grid">
+    <div class="k">레벨</div><div id="detailLevel"></div>
+    <div class="k">상태</div><div id="detailStatus"></div>
+    <div class="k">태그</div><div id="detailTags"></div>
+    <div class="k">최종 업데이트</div><div id="detailLastUpdated"></div>
+  </div>
+  <div class="subttl" style="margin-top:16px;font-weight:700;color:#4b5563">와이어프레임 썸네일</div>
+  <div class="wf-thumb" id="detailWf"></div>
+  <div class="subttl" style="margin-top:16px;font-weight:700;color:#4b5563">연결된 페이지 (부모/자식)</div>
+  <div id="existingLinks" class="chip-group"></div>
+  <div class="subttl" style="margin-top:16px;font-weight:700;color:#4b5563">레벨 변경</div>
+  <div>
+    <select id="levelSelect" class="chip" style="padding:8px 10px;background:#fff;border-radius:10px;border:1px solid var(--line)">
+      <option value="1">Level 1</option><option value="2">Level 2</option>
+      <option value="3">Level 3</option><option value="4">Level 4</option>
+    </select>
+    <button class="btn primary" id="btnChangeLevel">변경</button>
+  </div>
+  <div class="subttl" style="margin-top:16px;font-weight:700;color:#4b5563">새 연결 추가</div>
+  <div>
+    <select id="linkNodeSelect" class="chip" style="padding:8px 10px;background:#fff;border-radius:10px;border:1px solid var(--line)"></select>
+    <button class="btn primary" id="btnAddLink">연결 추가</button>
+  </div>
+</aside>
+
+<!-- Wireframe modal -->
+<div class="modal" id="modal">
+  <div class="wf" id="modalWf">
+    <div class="wf-h">
+      <span id="m-title"></span>
+      <button class="btn" id="m-close"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="wf-body" id="m-body"></div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  /* ---- Config for fixed bands ---- */
+  const BAND_HEIGHT = 220;     // 레벨 밴드 높이(고정) – 이미지처럼 균등
+  const BAND_PADDING_TOP = 60; // 각 밴드 상단 내 여백(노드와 라벨 간 간격)
+  const NODE_ROW_Y = 100;      // 밴드 내부에서 노드를 표시할 기준 y (균등 정렬)
+  const MIN_X = 24;            // 좌측 기준(노드 겹침 방지용 마진)
+
+  const LEVEL_TITLES = {
+    0: 'L0 · Home/Global',
+    1: 'L1 · 카테고리 허브',
+    2: 'L2 · 제품군/세부',
+    3: 'L3 · PD 상위',
+    4: 'L4 · Buying/Cart'
+  };
+
+  /* ---- Dummy data (간략) ---- */
+  const pageData = {
+    'home_mx': { id:'home_mx', label:'Home', level:0, type:'main', tags:['v2.0','정상'], status:'ok', updated:'2024-07-20', wireframe:{type:'hero'}, parent:null, children:['smartphones','tablets'] },
+    'smartphones': { id:'smartphones', label:'Smartphones', level:1, type:'category', tags:['v2.0','정상'], status:'ok', updated:'2024-07-22', wireframe:{type:'grid'}, parent:'home_mx', children:['sp-all','sp-s','pd-flag-s','buy-flag-s'] },
+    'tablets': { id:'tablets', label:'Tablets', level:1, type:'category', tags:['v2.0','정상'], status:'ok', updated:'2024-07-22', wireframe:{type:'grid'}, parent:'home_mx', children:['tb-all'] },
+    'sp-all': { id:'sp-all', label:'All', level:2, type:'page', tags:['v2.0','정상'], status:'ok', updated:'2024-07-23', wireframe:{type:'card'}, parent:'smartphones', children:[] },
+    'sp-s': { id:'sp-s', label:'Galaxy S', level:2, type:'page', tags:['v2.0','정상'], status:'ok', updated:'2024-07-23', wireframe:{type:'card'}, parent:'smartphones', children:['pd-flag-s'] },
+    'tb-all': { id:'tb-all', label:'All', level:2, type:'page', tags:['v2.0','정상'], status:'ok', updated:'2024-07-23', wireframe:{type:'card'}, parent:'tablets', children:[] },
+    'pd-flag-s': { id:'pd-flag-s', label:'Flagship PD (S)', level:3, type:'page', tags:['v2.0','정상'], status:'ok', updated:'2024-07-24', wireframe:{type:'card'}, parent:'sp-s', children:['buy-flag-s'] },
+    'pd-feat-z': { id:'pd-feat-z', label:'Featured PD (Z)', level:3, type:'page', tags:['v2.0','정상'], status:'ok', updated:'2024-07-24', wireframe:{type:'card'}, parent:null, children:[] },
+    'buy-flag-s': { id:'buy-flag-s', label:'Flagship Buying PD (S)', level:4, type:'page', tags:['v2.0','정상'], status:'ok', updated:'2024-07-25', wireframe:{type:'single'}, parent:'pd-flag-s', children:[] }
+  };
+
+  /* 초기 좌표(밴드 기준으로 균등 행 배치) */
+  const nodePositions = {
+    'home_mx': { left: 300, top: bandTop(0)+NODE_ROW_Y },
+    'smartphones': { left: 600, top: bandTop(1)+NODE_ROW_Y },
+    'tablets': { left: 1300, top: bandTop(1)+NODE_ROW_Y },
+    'sp-all': { left: 650, top: bandTop(2)+NODE_ROW_Y },
+    'sp-s': { left: 1000, top: bandTop(2)+NODE_ROW_Y },
+    'tb-all': { left: 1500, top: bandTop(2)+NODE_ROW_Y },
+    'pd-flag-s': { left: 1000, top: bandTop(3)+NODE_ROW_Y },
+    'pd-feat-z': { left: 1500, top: bandTop(3)+NODE_ROW_Y },
+    'buy-flag-s': { left: 1000, top: bandTop(4)+NODE_ROW_Y }
+  };
+
+  // DOM
+  const stage = document.getElementById('stage');
+  const bandsLayer = document.getElementById('bands');
+  const nodesLayer = document.getElementById('nodesLayer');
+  const linksCanvas = document.getElementById('linksCanvas');
+  const detailPanel = document.getElementById('detailPanel');
+  const btnClosePanel = document.getElementById('btnClosePanel');
+  const btnFull = document.getElementById('btnFull');
+  const originalDetailParent = detailPanel.parentElement;
+  const levelPills = document.querySelectorAll('.pill');
+  const searchInput = document.getElementById('searchInput');
+
+  let nodes = [];
+  let activeNode = null;
+  let drag = { on:false, el:null, dx:0, dy:0 };
+  let connect = { on:false, start:null, handle:null };
+
+  function levelsSorted(){ return [...new Set(Object.values(pageData).map(n=>n.level))].sort((a,b)=>a-b); }
+  function bandTop(level){ return level * BAND_HEIGHT; }
+  function ensureStageHeight(){
+    const maxLevel = Math.max(...levelsSorted());
+    stage.style.minHeight = (bandTop(maxLevel)+BAND_HEIGHT+40)+'px';
+    stage.style.height = stage.style.height; // trigger
+    linksCanvas.setAttribute('width', stage.scrollWidth);
+    linksCanvas.setAttribute('height', stage.scrollHeight);
+  }
+
+  /* ----- Bands: fixed full-width from left 0, no gap ----- */
+  function renderBands(){
+    bandsLayer.innerHTML='';
+    const lvls = levelsSorted();
+    lvls.forEach(lv=>{
+      const band = document.createElement('div');
+      band.className='level-band';
+      band.style.top = bandTop(lv)+'px';
+      band.style.height = BAND_HEIGHT+'px';
+      const label = document.createElement('span');
+      label.className='level-label';
+      label.innerHTML = `<span class="level-caption">${LEVEL_TITLES[lv] || ('L'+lv)}</span>`;
+      band.appendChild(label);
+      bandsLayer.appendChild(band);
+    });
+  }
+
+  /* ----- Nodes ----- */
+  function nodeHTML(node){
+    if(node.type==='main'){
+      return `<div class="title"><i class="fa-solid fa-house"></i> ${node.label}</div>
+              <div class="badges">${node.tags.map(t=>`<span class="b">${t}</span>`).join('')}</div>`;
+    }
+    const tn = `<span class="tn"><span class="bar b1"></span><span class="bar b2"></span><span class="kv"></span></span>`;
+    return `${tn}<div><div class="title"><i class="fa-regular fa-file"></i> ${node.label}</div>
+            <div class="badges">${node.tags.map(t=>`<span class="b ${t==='정상'?'ok':t==='주의'?'warn':''}">${t}</span>`).join('')}</div></div>`;
+  }
+
+  function renderNodes(){
+    nodesLayer.innerHTML=''; nodes=[];
+    Object.values(pageData).forEach(n=>{
+      const el = document.createElement('div');
+      el.className='node'; if(n.type==='category') el.classList.add('category'); if(n.type==='main') el.classList.add('main');
+      el.dataset.id=n.id; el.dataset.level=n.level;
+      // 균등 y 스냅(레벨 밴드 중앙 근처로): 밴드 시작 + 지정 row y
+      const pos = nodePositions[n.id] || {left:MIN_X, top:bandTop(n.level)+NODE_ROW_Y};
+      pos.top = bandTop(n.level)+NODE_ROW_Y; // 밴드 기준으로 항상 동일 y (상하 겹침 방지)
+      if(pos.left < MIN_X) pos.left = MIN_X;
+      nodePositions[n.id]=pos;
+      el.style.left = pos.left+'px';
+      el.style.top  = pos.top +'px';
+      el.innerHTML = nodeHTML(n);
+      // handles (연결)
+      const hp = document.createElement('div'); hp.className='connector-handle parent'; el.appendChild(hp);
+      const hc = document.createElement('div'); hc.className='connector-handle child'; el.appendChild(hc);
+      nodesLayer.appendChild(el); nodes.push(el);
+    });
+    ensureStageHeight(); drawLinks(); renderBands();
+  }
+
+  /* ----- Lines (curved) ----- */
+  function drawLinks(){
+    const svg = linksCanvas; svg.innerHTML='';
+    Object.values(pageData).forEach(n=>{
+      if(!n.parent) return;
+      const pEl = nodesLayer.querySelector(`.node[data-id="${n.parent}"]`);
+      const cEl = nodesLayer.querySelector(`.node[data-id="${n.id}"]`);
+      if(!pEl||!cEl) return;
+      const ps = pEl.getBoundingClientRect(), cs = cEl.getBoundingClientRect(), ss = stage.getBoundingClientRect();
+      const x1 = ps.left + ps.width/2 - ss.left + stage.scrollLeft;
+      const y1 = ps.bottom - ss.top + stage.scrollTop;
+      const x2 = cs.left + cs.width/2 - ss.left + stage.scrollLeft;
+      const y2 = cs.top - ss.top + stage.scrollTop;
+      const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+      const d = `M ${x1} ${y1} C ${x1} ${y1+60}, ${x2} ${y2-60}, ${x2} ${y2}`;
+      path.setAttribute('d', d); path.setAttribute('class','connecting-line');
+      svg.appendChild(path);
+    });
+  }
+
+  /* ----- Detail ----- */
+  function openDetail(id){
+    const n = pageData[id]; if(!n) return;
+    activeNode = n;
+    document.getElementById('detailTitle').textContent = n.label;
+    document.getElementById('detailLevel').innerHTML = `<span class="status-badge sb-ok">Level ${n.level}</span>`;
+    document.getElementById('detailStatus').innerHTML = `<span class="status-badge ${n.status==='ok'?'sb-ok':n.status==='warn'?'sb-warn':'sb-err'}">${n.status==='ok'?'정상':n.status==='warn'?'주의':'오류'}</span>`;
+    document.getElementById('detailTags').innerHTML = `<div class="badge-wrap">${n.tags.map(t=>`<span class="chip">${t}</span>`).join('')}</div>`;
+    document.getElementById('detailLastUpdated').textContent = n.updated;
+    // wireframe
+    document.getElementById('detailWf').innerHTML = `<div class="wf-h1"></div><div class="wf-h2"></div><div class="wf-hero"></div>
+      <div class="wf-grid"><div class="card"><div class="img"></div><div class="bar s"></div><div class="bar xs"></div></div>
+      <div class="card"><div class="img"></div><div class="bar s"></div><div class="bar xs"></div></div>
+      <div class="card"><div class="img"></div><div class="bar s"></div><div class="bar xs"></div></div></div>`;
+    // links info
+    const chips=[];
+    if(n.parent){
+      const p=pageData[n.parent];
+      chips.push(`<div class="chip-group"><span>부모:</span><span class="chip">${p.label} <i class="fa-solid fa-xmark" data-action="disconnect" data-target="${p.id}"></i></span></div>`);
+    }
+    if(n.children?.length){
+      chips.push(`<div class="chip-group"><span>자식:</span>${n.children.map(cid=>`<span class="chip">${pageData[cid]?.label||cid} <i class="fa-solid fa-xmark" data-action="disconnect" data-target="${cid}"></i></span>`).join('')}</div>`);
+    }
+    document.getElementById('existingLinks').innerHTML = chips.join('') || '<span class="chip">연결 없음</span>';
+    // level / link selects
+    document.getElementById('levelSelect').value = n.level;
+    const sel = document.getElementById('linkNodeSelect'); sel.innerHTML='<option value="">선택...</option>';
+    Object.values(pageData).filter(p=>p.id!==id && p.id!==n.parent && !(n.children||[]).includes(p.id)).forEach(p=>{
+      const o=document.createElement('option'); o.value=p.id; o.textContent=p.label; sel.appendChild(o);
+    });
+    detailPanel.classList.add('open');
+  }
+  document.getElementById('btnClosePanel').addEventListener('click',()=>detailPanel.classList.remove('open'));
+  document.getElementById('existingLinks').addEventListener('click',e=>{
+    const t=e.target.closest('[data-action="disconnect"]'); if(!t||!activeNode) return;
+    const targetId=t.dataset.target;
+    if(activeNode.children?.includes(targetId)){ activeNode.children=activeNode.children.filter(x=>x!==targetId); pageData[targetId].parent=null; }
+    else if(activeNode.parent===targetId){ pageData[targetId].children=(pageData[targetId].children||[]).filter(x=>x!==activeNode.id); activeNode.parent=null; }
+    drawLinks(); openDetail(activeNode.id);
+  });
+  document.getElementById('btnChangeLevel').addEventListener('click',()=>{
+    if(!activeNode) return; const lv=parseInt(document.getElementById('levelSelect').value,10);
+    activeNode.level=lv; nodePositions[activeNode.id].top=bandTop(lv)+NODE_ROW_Y; renderNodes(); openDetail(activeNode.id);
+  });
+  document.getElementById('btnAddLink').addEventListener('click',()=>{
+    if(!activeNode) return; const tid=document.getElementById('linkNodeSelect').value; if(!tid) return;
+    const t=pageData[tid];
+    if(t.parent){ const op=pageData[t.parent]; op.children=op.children.filter(x=>x!==tid); }
+    t.parent=activeNode.id; activeNode.children=activeNode.children||[]; if(!activeNode.children.includes(tid)) activeNode.children.push(tid);
+    drawLinks(); openDetail(activeNode.id);
+  });
+
+  /* ----- Interactions: click, drag, connect ----- */
+  nodesLayer.addEventListener('mousedown',e=>{
+    const handle=e.target.closest('.connector-handle'); const el=e.target.closest('.node');
+    if(handle && el){
+      connect.on=true; connect.start=el; connect.handle=handle;
+      const tmp=document.createElementNS('http://www.w3.org/2000/svg','path'); tmp.setAttribute('id','temp-line'); tmp.setAttribute('class','connecting-line'); linksCanvas.appendChild(tmp);
+      return;
+    }
+    if(el){
+      const r=el.getBoundingClientRect(), s=stage.getBoundingClientRect();
+      drag.on=true; drag.el=el; drag.dx=e.clientX-r.left; drag.dy=e.clientY-r.top; el.classList.add('dragging');
+    }
+  });
+  document.addEventListener('mousemove',e=>{
+    if(drag.on && drag.el){
+      const s=stage.getBoundingClientRect();
+      const id=drag.el.dataset.id;
+      let nx = e.clientX - s.left - drag.dx + stage.scrollLeft;
+      let ny = e.clientY - s.top  - drag.dy + stage.scrollTop;
+      if(nx<MIN_X) nx=MIN_X;
+      // y는 밴드 기준으로 스냅 (해당 노드 레벨 밴드 고정 Y)
+      const lv = parseInt(drag.el.dataset.level,10);
+      ny = bandTop(lv)+NODE_ROW_Y;
+      drag.el.style.left = nx+'px'; drag.el.style.top = ny+'px';
+      nodePositions[id].left = nx; nodePositions[id].top = ny;
+      drawLinks();
+    }
+    if(connect.on && connect.start){
+      const tmp=document.getElementById('temp-line'); if(tmp){
+        const sr=connect.start.getBoundingClientRect(), ss=stage.getBoundingClientRect();
+        const sx = sr.left + sr.width/2 - ss.left + stage.scrollLeft;
+        const sy = connect.handle.classList.contains('parent') ? (sr.bottom - ss.top + stage.scrollTop) : (sr.top - ss.top + stage.scrollTop);
+        const ex = e.clientX - ss.left + stage.scrollLeft;
+        const ey = e.clientY - ss.top + stage.scrollTop;
+        const d = `M ${sx} ${sy} C ${sx} ${sy+60}, ${ex} ${ey-60}, ${ex} ${ey}`;
+        tmp.setAttribute('d', d);
+      }
+    }
+  });
+  document.addEventListener('mouseup',e=>{
+    if(drag.on){ drag.el.classList.remove('dragging'); openDetail(drag.el.dataset.id); drag={on:false,el:null,dx:0,dy:0}; }
+    if(connect.on){
+      const tmp=document.getElementById('temp-line'); if(tmp) tmp.remove();
+      const startId=connect.start.dataset.id; const targetEl=e.target.closest('.node');
+      if(targetEl && targetEl.dataset.id!==startId){
+        const tid=targetEl.dataset.id, sData=pageData[startId], tData=pageData[tid];
+        if(connect.handle.classList.contains('parent')){ // start -> parent, target -> child
+          if(!sData.children) sData.children=[]; if(!sData.children.includes(tid)) sData.children.push(tid);
+          tData.parent=startId;
+        }else{ // start child -> make target parent
+          if(!tData.children) tData.children=[]; if(!tData.children.includes(startId)) tData.children.push(startId);
+          sData.parent=tid;
+        }
+        drawLinks(); openDetail(startId);
+      }
+      connect={on:false,start:null,handle:null};
+    }
+  });
+
+  /* ----- Filters ----- */
+  function applyFilter(q='', lv='all'){
+    nodes.forEach(n=>{
+      const d=pageData[n.dataset.id]; const text=(d.label+' '+(d.tags||[]).join(' ')).toLowerCase();
+      const mLevel=(lv==='all')||(parseInt(n.dataset.level)===parseInt(lv));
+      const mText=text.includes(q.toLowerCase());
+      n.style.display=(mLevel && mText)?'grid':'none';
+    });
+    drawLinks();
+  }
+  levelPills.forEach(p=>p.addEventListener('click',()=>{
+    levelPills.forEach(x=>x.classList.remove('on')); p.classList.add('on'); applyFilter(searchInput.value, p.dataset.level||'all');
+  }));
+  searchInput.addEventListener('input',e=>applyFilter(e.target.value, document.querySelector('.pill.on').dataset.level||'all'));
+
+  /* ----- Fullscreen (미색 배경 유지) ----- */
+  document.getElementById('btnFull').addEventListener('click', async ()=>{
+    if(!document.fullscreenElement){ await stage.requestFullscreen(); if(detailPanel.parentElement!==stage){ stage.appendChild(detailPanel); detailPanel.classList.add('fs'); } }
+    else { await document.exitFullscreen(); if(detailPanel.parentElement===stage){ document.body.appendChild(detailPanel); detailPanel.classList.remove('fs'); } }
+  });
+
+  /* ----- Export / Reload ----- */
+  document.getElementById('btnReload').addEventListener('click',()=>location.reload());
+  document.getElementById('btnExport').addEventListener('click',()=>{
+    const out = Object.values(pageData).map(n=>({id:n.id,label:n.label,level:n.level,parent:n.parent,children:n.children||[],pos:nodePositions[n.id]}));
+    const blob=new Blob([JSON.stringify({exportedAt:new Date().toISOString(),nodes:out},null,2)],{type:'application/json'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='samsung-system-map-v7.json'; a.click(); URL.revokeObjectURL(a.href);
+  });
+
+  /* ----- Init ----- */
+  renderBands(); renderNodes();
+
+  // 클릭으로 상세 열기
+  nodesLayer.addEventListener('click',e=>{
+    const el=e.target.closest('.node'); if(el && !e.target.classList.contains('connector-handle')) openDetail(el.dataset.id);
+  });
+});
+</script>
+</body>
+</html>
