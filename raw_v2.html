@@ -12,7 +12,7 @@
 <div class="container">
   <!-- Sidebar -->
   <aside class="sidebar">
-    <div class="logo"><img src="logo.svg" alt="logo" style="height:24px;vertical-align:middle;margin-right:8px;"></div>
+    <div class="logo"><img src="assets/logo.svg" alt="logo" style="height:24px;vertical-align:middle;margin-right:8px;"></div>
     <div class="nav-section">
       <div class="nav-title">메뉴</div>
       <div class="nav-item active" data-page="sitemap"><i class="fa-solid fa-diagram-project"></i> 사이트맵</div>
@@ -26,7 +26,8 @@
   <main class="main-content">
     <section class="page active" id="sitemap">
       <div class="header">
-        <div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="btn" id="btnSidebarToggle" title="사이드바 접기/펴기"><i class="fa-solid fa-angles-left"></i></button>
           <div class="page-title">Site Map</div>
         </div>
         <div>

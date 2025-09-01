@@ -5,14 +5,24 @@
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,'Apple SD Gothic Neo','Malgun Gothic',sans-serif}
-.container{display:grid;grid-template-columns:280px 1fr;min-height:100vh}
+.container{display:grid;grid-template-columns:280px minmax(0,1fr);min-height:100vh;transition:all .25s}
 .sidebar{background:#000;color:#fff}
 .logo{padding:18px;border-bottom:1px solid rgba(255,255,255,.15);display:flex;align-items:center;gap:10px;font-weight:800}
 .nav-section{padding:10px}
 .nav-title{opacity:.75;font-size:12px;margin:10px 6px}
 .nav-item{padding:10px 12px;border-radius:10px;display:flex;gap:10px;align-items:center;cursor:pointer}
 .nav-item:hover,.nav-item.active{background:rgba(255,255,255,.12)}
-.main-content{padding:22px 26px}
+.main-content{padding:22px 26px;min-width:0}
+
+/* 사이드바 토글 */
+.container.sidebar-collapsed{grid-template-columns:56px minmax(0,1fr)}
+.container.sidebar-collapsed .sidebar{width:56px;overflow:hidden}
+.container.sidebar-collapsed .logo,.container.sidebar-collapsed .nav-title,.container.sidebar-collapsed .nav-item span{display:none}
+.container.sidebar-collapsed .nav-item{justify-content:center}
+/* 사용자 지정: 사이드바 완전 숨김 + 메인 영역 전체 span */
+.container.sidebar-collapsed .sidebar{display:none}
+.container.sidebar-collapsed .main-content{grid-column:1 / -1}
+.container.sidebar-collapsed .sidebar{display:none}
 .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--line)}
 .page-title{font-size:22px;font-weight:800;padding: 4px 0;}
 .page-subtitle{color:#94a3b8;font-size:13px;margin-top:4px}
@@ -97,10 +107,22 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,'Apple
 .level-label{position:absolute;left:8px;top:6px;font-size:11px;color:#64748b;font-weight:700;line-height:1.2}
 #linksLayer{position:absolute;width:100%;height:100%;inset:0;pointer-events:none;z-index:1}
 
+/* CEJ 타임라인 전용 스타일 */
+.cej{--cej-track:#e5e7eb;--cej-dot:#9ca3af;--cej-label:#334155}
+.cej .timeline-track{position:absolute;left:140px;right:140px;top:75px;height:2px;background:var(--cej-track);border-radius:2px}
+.cej .timeline-step{position:absolute;top:70px;width:12px;height:12px;border:2px solid var(--cej-dot);border-radius:50%;background:#fff}
+.cej .timeline-label{position:absolute;top:24px;transform:translateX(-50%);font-weight:700;font-size:14px;color:var(--cej-label)}
+/* CEJ 모드에서 노드들이 타임라인과 겹치지 않도록 여백 확보 */
+.cej .node{top:120px !important}
+/* CEJ 모드에서 노드 위치 고정 (위로 튀어올라오는 문제 방지) */
+.cej .node[data-level="0"]{top:120px !important}
+.cej .node[data-level="1"]{top:400px !important}
+.cej .node[data-level="2"]{top:680px !important}
+
 /* ▶ 노드: 세로 배치 (타이틀 → 뱃지 → 와이어프레임) */
 .node{position:absolute;min-width:120px;max-width:150px;background:#fff;border:1px solid var(--line);border-radius:12px;
   padding:10px 12px;font-size:12.5px;box-shadow:0 8px 20px rgba(2,6,23,.08);
-  display:flex;flex-direction:column;gap:8px;cursor:pointer;transition:.15s;z-index:2;height:220px}
+  display:flex;flex-direction:column;gap:8px;cursor:pointer;transition:.15s;z-index:2;height:260px}
 .node:hover{transform:translateY(-2px)}
 .node.category{border:2px solid var(--secondary);color:#0e4a6e;font-weight:700;background:#f1f8ff}
 .node.main{background:var(--primary);color:#fff;font-weight:800}
@@ -114,7 +136,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,'Apple
 .b.err{background:#fff1f2;color:#b91c1c;border-color:#fecdd3}
 
 /* ▶ 노드 썸네일(간단 와이어프레임) */
-.tn{width:94px;height:141px;border-radius:8px;border:1px solid var(--line);background:#fff;display:block;position:relative;overflow:hidden;flex-shrink:0;margin:0 auto}
+.tn{width:94px;height:160px;border-radius:8px;border:1px solid var(--line);background:#fff;display:block;position:relative;overflow:hidden;flex-shrink:0;margin:0 auto;padding:8px;box-sizing:border-box}
 .tn::before{content:'';position:absolute;inset:0;background:linear-gradient(#e9eef7,#f6f8fb)}
 .tn .bar{position:absolute;left:6px;right:6px;height:4px;background:#d8dee9;border-radius:3px}
 .tn .bar.b1{top:8px}
@@ -205,15 +227,23 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,'Apple
 .tn-preview-element{position:absolute;background:#d8dee9;border:2px solid transparent;cursor:move;transition:border-color 0.2s}
 .tn-preview-element:hover{border-color:var(--primary)}
 .tn-preview-element.selected{border-color:var(--primary);background:#006BEA;color:#fff}
-.tn-preview-element .resize-handle{position:absolute;width:8px;height:8px;background:#fff;border:1px solid var(--primary);border-radius:50%;z-index:10}
-.tn-preview-element .resize-handle.n{top:-4px;left:50%;transform:translateX(-50%);cursor:n-resize}
-.tn-preview-element .resize-handle.s{bottom:-4px;left:50%;transform:translateX(-50%);cursor:s-resize}
-.tn-preview-element .resize-handle.w{left:-4px;top:50%;transform:translateY(-50%);cursor:w-resize}
-.tn-preview-element .resize-handle.e{right:-4px;top:50%;transform:translateY(-50%);cursor:e-resize}
-.tn-preview-element .resize-handle.nw{top:-4px;left:-4px;cursor:nw-resize}
-.tn-preview-element .resize-handle.ne{top:-4px;right:-4px;cursor:ne-resize}
-.tn-preview-element .resize-handle.sw{bottom:-4px;left:-4px;cursor:sw-resize}
-.tn-preview-element .resize-handle.se{bottom:-4px;right:-4px;cursor:se-resize}
+.tn-resizable{position:absolute}
+.tn-resizable .handle{position:absolute;width:10px;height:10px;border:1px solid #333;background:#fff;box-sizing:border-box}
+.tn-resizable .handle.nw{left:-5px;top:-5px;cursor:nwse-resize}
+.tn-resizable .handle.ne{right:-5px;top:-5px;cursor:nesw-resize}
+.tn-resizable .handle.sw{left:-5px;bottom:-5px;cursor:nesw-resize}
+.tn-resizable .handle.se{right:-5px;bottom:-5px;cursor:nwse-resize}
+.tn-resizable .handle.n{left:50%;top:-5px;transform:translateX(-50%);cursor:ns-resize}
+.tn-resizable .handle.s{left:50%;bottom:-5px;transform:translateX(-50%);cursor:ns-resize}
+.tn-resizable .handle.w{left:-5px;top:50%;transform:translateY(-50%);cursor:ew-resize}
+.tn-resizable .handle.e{right:-5px;top:50%;transform:translateY(-50%);cursor:ew-resize}
+
+/* 와이어프레임 미리보기 요소 최대 너비 제한 */
+.tn-preview-element{max-width:280px !important;max-height:400px !important}
+.tn-preview-element .bar{max-width:100% !important}
+.tn-preview-element .kv{max-width:100% !important}
+.tn-preview-element .circle{max-width:20px !important;max-height:20px !important}
+.tn-preview-element .rect{max-width:30px !important;max-height:20px !important}
 .tn-edit-controls{display:flex;flex-direction:column;gap:16px}
 .tn-edit-section{background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:16px}
 .tn-edit-section h4{margin:0 0 12px 0;font-size:14px;color:#374151}

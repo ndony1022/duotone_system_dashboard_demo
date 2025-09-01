@@ -1,9 +1,9 @@
 /* ---------- 배치 상수 (PDF 간격 반영) ---------- */
-const bandH = 280;          // 레벨 기본 높이 (100px 증가)
+const bandH = 320;          // 레벨 기본 높이 (밴드 높이와 간격을 정확히 맞춤)
 const leftBase = 140;       // 좌측 여백
 const colW = 260;           // 열 폭(조금 넓힘)
 const gapX = 40;            // 열 간격
-const gapY = 120;           // 행 간격 (50px 증가)
+const gapY = 40;             // 행 간격 (밴드 간격 완전 제거)
 
 /* ---------- 데이터: PDF 구조 반영 ---------- */
 /* L0: Home, PFS, Shop, My Page, Accessories
@@ -116,6 +116,7 @@ const nodesCEJ = [
 
 // 현재 표시 데이터 세트 (기본: MX)
 let nodes = [...nodesMX];
+let isCEJMode = false; // CEJ(Customer Journey) 모드 여부
 
 /* ---------- 엘리먼트 ---------- */
 const stage = document.getElementById('stage');
@@ -127,13 +128,16 @@ const detail = document.getElementById('detail');
 const originalDetailParent = detail.parentElement;
 const bottomArea = document.getElementById('bottomArea');
 const originalBottomAreaParent = bottomArea.parentElement;
+// 줌 컨트롤 원위치 복원을 위한 참조
+const zoomControls = document.querySelector('.zoom-controls');
+const originalZoomControlsParent = zoomControls ? zoomControls.parentElement : null;
 
 /* 좌표 계산: 레벨/순서 기반 자동 배치 */
 function xy(n){
   const levelIndex = n.level || 0;
   
   // CEJ 뷰인 경우 수평 타임라인 형태로 배치
-  if (nodes === nodesCEJ) {
+  if (isCEJMode) {
   const inLevel = nodes.filter(x=>x.level===levelIndex);
   inLevel.sort((a,b)=>{
     const ac = (typeof a.col==='number')?a.col: Number.MAX_SAFE_INTEGER;
@@ -147,11 +151,11 @@ function xy(n){
     const baseLeft = 140;
     const nodeWidth = 180; // CEJ 뷰에서는 노드를 조금 더 넓게
     const gap = 80; // CEJ 뷰에서는 간격을 더 넓게
-    const cejBandH = 200; // CEJ 뷰에서는 레벨 간격을 줄임
+    const cejBandH = 280; // CEJ 뷰에서는 레벨 간격을 늘림 (노드 겹침 방지)
     
   return {
       x: baseLeft + indexInLevel * (nodeWidth + gap),
-      y: 60 + levelIndex * cejBandH // 타임라인 높이(40px) + 여백(20px) 추가
+      y: 120 + levelIndex * cejBandH // 타임라인 높이(40px) + 여백(80px) 추가 (타임라인과 노드 겹침 방지)
     };
   }
   
@@ -189,7 +193,7 @@ function xy(n){
     }
   }
   
-  // L0, L1, L2 노드의 경우 기존 로직 사용
+  // L0, L1, L2 노드의 경우 기존 로직 사용 (CEJ가 아니면)
   const inLevel = nodes.filter(x=>x.level===levelIndex);
   inLevel.sort((a,b)=>{
     const ac = (typeof a.col==='number')?a.col: Number.MAX_SAFE_INTEGER;
@@ -214,32 +218,34 @@ function xy(n){
 function updateBands(){
   bands.innerHTML = '';
   
-  // CEJ 뷰인 경우 타임라인 레이블 추가
-  if (nodes === nodesCEJ) {
-    const timelineLabels = ['Home page', 'PFS', 'PCD', 'PF', 'PD', 'Cart', 'Checkout'];
-    const timelineBand = document.createElement('div');
-    timelineBand.className = 'level-band';
-    timelineBand.style.left = '0px';
-    timelineBand.style.width = '100%';
-    timelineBand.style.top = '0px';
-    timelineBand.style.height = '40px';
-    timelineBand.style.background = '#1f2937';
-    timelineBand.style.color = '#fff';
-    timelineBand.style.display = 'flex';
-    timelineBand.style.alignItems = 'center';
-    timelineBand.style.padding = '0 140px';
-    timelineBand.style.fontSize = '12px';
-    timelineBand.style.fontWeight = 'bold';
-    
-    timelineLabels.forEach((label, index) => {
-      const labelEl = document.createElement('span');
-      labelEl.textContent = label;
-      labelEl.style.marginRight = '80px';
-      labelEl.style.opacity = '0.8';
-      timelineBand.appendChild(labelEl);
+  // CEJ 뷰: 레벨 밴드 숨기고 타임라인(스텝 바) 생성
+  if (isCEJMode) {
+    stage.classList.add('cej');
+    const labels = ['Home page','PFS','PCD','PF','PD','Cart','Checkout'];
+    const positions = labels.map((_, i)=> 140 + i * 260); // 좌측 시작 140, 스텝 간격 260px (노드와 맞춤)
+
+    // 트랙
+    const track = document.createElement('div');
+    track.className = 'timeline-track';
+    bands.appendChild(track);
+
+    // 스텝 + 라벨
+    positions.forEach((x, i)=>{
+      const dot = document.createElement('div');
+      dot.className = 'timeline-step';
+      dot.style.left = (x - 6) + 'px'; // 12px 원 정렬
+      bands.appendChild(dot);
+
+      const lab = document.createElement('div');
+      lab.className = 'timeline-label';
+      lab.style.left = x + 'px';
+      lab.textContent = labels[i];
+      bands.appendChild(lab);
     });
-    
-    bands.appendChild(timelineBand);
+
+    return; // 레벨 밴드 생성 스킵
+  } else {
+    stage.classList.remove('cej');
   }
   
   const levels = [0,1,2,3,4];
@@ -250,15 +256,9 @@ function updateBands(){
                   .filter(e=>e.style.display!=='none');
     if(!els.length) return;
     
-    const tops = els.map(e=>e.offsetTop);
-    const bottoms = els.map(e=>e.offsetTop + e.offsetHeight);
-    const minTop = Math.min(...tops);
-    const maxBottom = Math.max(...bottoms);
-
-    // 밴드 높이 계산 (노드들 위아래로 여백 추가)
-    const bandTop = Math.max(0, minTop - 50); // 노드들 위로 50px 여백
-    const bandBottom = maxBottom + 50; // 노드들 아래로 50px 여백
-    const bandHeightPx = bandBottom - bandTop;
+    // 고정 배치: 밴드 높이는 bandH, top은 lv*bandH
+    const bandTop = lv * bandH;
+    const bandHeightPx = bandH;
 
     const band = document.createElement('div');
     band.className = 'level-band';
@@ -362,9 +362,9 @@ function paint(){
     }
     
     el.dataset.id=n.id; el.dataset.level=n.level; el.dataset.cluster=n.cluster; el.title=n.title;
-    const icon = (n.type==='main')?'<i class="fa-solid fa-house"></i>':(n.type==='category')?'<i class="fa-solid fa-layer-group"></i>':'<i class="fa-regular fa-file"></i>';
+    // 아이콘 제거: 타이틀만 표시
     el.innerHTML = `
-        <div class="title">${icon} ${n.title}</div>
+        <div class="title">${n.title}</div>
         <div class="badges">
           <span class="b ${n.ds?.startsWith('v2')?'v2':''}">${n.ds||'v—'}</span>
           <span class="b ${n.status==='ok'?'ok':n.status==='warn'?'warn':'err'}">${n.status==='ok'?'정상':n.status==='warn'?'업데이트':'확인'}</span>
@@ -525,57 +525,71 @@ function generateRandomWireframe(){
   return patterns[randomIndex];
 }
 
-// 수평 드래그앤드롭 (수동 위치 조정 가능)
+// 수평/수직 드래그앤드롭 (수동 위치 조정 가능, 경계 제한 포함, 실시간 연결선)
 function makeDraggable(el, node){
   let isDragging = false;
   let startX = 0;
+  let startY = 0;
   let startLeft = 0;
-  
+  let startTop = 0;
+
   const onMouseDown = (e) => {
-    if (e.button !== 0) return; // 좌클릭만
+    if (e.button !== 0) return; // 좌클릭만 허용
     e.preventDefault();
     e.stopPropagation();
-    
+
     isDragging = true;
     startX = e.clientX;
+    startY = e.clientY;
     startLeft = parseFloat(el.style.left) || 0;
-    
+    startTop  = parseFloat(el.style.top)  || 0;
+
     el.style.cursor = 'grabbing';
     el.style.zIndex = '10';
-    
+
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp, { once: true });
   };
-  
+
   const onMouseMove = (e) => {
     if (!isDragging) return;
     e.preventDefault();
-    
+
     const deltaX = e.clientX - startX;
+    const deltaY = e.clientY - startY;
+
     let newLeft = startLeft + deltaX;
-    
+    let newTop  = startTop  + deltaY;
+
     // 스테이지의 실제 스크롤 가능한 영역 크기 사용
-    const stageScrollWidth = stage.scrollWidth;
-    const nodeWidth = el.offsetWidth;
-    const maxLeft = stageScrollWidth - nodeWidth - 50; // 50px 여백
-    
-    // 경계 제한 (음수 허용하여 스크롤 가능하게)
+    const stageScrollWidth  = stage.scrollWidth;
+    const stageScrollHeight = stage.scrollHeight;
+    const nodeWidth  = el.offsetWidth;
+    const nodeHeight = el.offsetHeight;
+
+    const maxLeft = stageScrollWidth  - nodeWidth  - 50; // 우측 여백 50
+    const maxTop  = stageScrollHeight - nodeHeight - 50; // 하단 여백 50
+
+    // 경계 제한 (약간의 음수 허용으로 가장자리로 스크롤 유도)
     newLeft = Math.max(-100, Math.min(newLeft, maxLeft));
-    
+    newTop  = Math.max(-100, Math.min(newTop,  maxTop));
+
     el.style.left = newLeft + 'px';
+    el.style.top  = newTop  + 'px';
+
+    // 연결선만 재그리기
     redrawLinksOnly();
   };
-  
+
   const onMouseUp = (e) => {
     if (!isDragging) return;
-    
     isDragging = false;
     el.style.cursor = 'grab';
     el.style.zIndex = '2';
-    
+
     document.removeEventListener('mousemove', onMouseMove);
   };
-  
+
   el.addEventListener('mousedown', onMouseDown);
   el.style.cursor = 'grab';
 }
@@ -789,6 +803,18 @@ document.querySelectorAll('.nav-item').forEach(i=>{
     }
   });
 });
+// 사이드바 토글
+const btnSidebarToggle = document.getElementById('btnSidebarToggle');
+if(btnSidebarToggle){
+  btnSidebarToggle.addEventListener('click',()=>{
+    const container = document.querySelector('.container');
+    container.classList.toggle('sidebar-collapsed');
+    const icon = btnSidebarToggle.querySelector('i');
+    icon.className = container.classList.contains('sidebar-collapsed')
+      ? 'fa-solid fa-angles-right'
+      : 'fa-solid fa-angles-left';
+  });
+}
 const searchInput = document.getElementById('searchInput');
 const searchSuggestions = document.getElementById('searchSuggestions');
 
@@ -949,6 +975,7 @@ document.querySelectorAll('.viewbtn').forEach(v=>{
       stage.style.display='block'; 
       listView.style.display='none'; 
       nodes = [...nodesMX];
+      isCEJMode = false;
       paint(); 
     }
     if(mode==='list'){
@@ -960,6 +987,7 @@ document.querySelectorAll('.viewbtn').forEach(v=>{
       stage.style.display='block'; 
       listView.style.display='none'; 
       nodes = [...nodesCEJ];
+      isCEJMode = true;
       paint(); 
     }
   });
@@ -1464,18 +1492,32 @@ function parseTnElements(html) {
   tempDiv.innerHTML = html;
   
   tempDiv.querySelectorAll('span').forEach((el, index) => {
+    // tn(94x141) → 편집기(300x450) 좌표로 역변환
+    const editWidth = 300, editHeight = 450;
+    const tnWidth = 94, tnHeight = 141;
+    const scaleX = editWidth / tnWidth;
+    const scaleY = editHeight / tnHeight;
+
+    const type = el.className.includes('bar') ? 'bar' : 
+                 el.className.includes('circle') ? 'circle' : 
+                 el.className.includes('rect') ? 'rect' : 
+                 el.className.includes('kv') ? 'kv' : 'bar';
+
+    const topTn = parseInt(el.style.top) || 0;
+    const leftTn = parseInt(el.style.left) || 0;
+    const heightTn = parseInt(el.style.height) || 4;
+    const widthRaw = parseInt(el.style.width) || 100; // % 또는 px
+
     const element = {
       id: index,
-      type: el.className.includes('bar') ? 'bar' : 
-            el.className.includes('circle') ? 'circle' : 
-            el.className.includes('rect') ? 'rect' : 
-            el.className.includes('kv') ? 'kv' : 'bar',
+      type,
       className: el.className,
       style: el.style.cssText,
-      top: parseInt(el.style.top) || 0,
-      left: parseInt(el.style.left) || 0,
-      width: parseInt(el.style.width) || 100,
-      height: parseInt(el.style.height) || 4
+      top: Math.round(topTn * scaleY),
+      left: Math.round(leftTn * scaleX),
+      // bar/kv: % 유지, 나머지(px)는 편집기 크기로 스케일
+      width: (type === 'bar' || type === 'kv') ? widthRaw : Math.round(widthRaw * scaleX),
+      height: Math.round(heightTn * scaleY)
     };
     elements.push(element);
   });
@@ -1521,8 +1563,8 @@ document.querySelectorAll('.tn-edit-btn.add').forEach(btn => {
                 type === 'rect' ? 'rect' : 
                 type === 'kv' ? 'kv' : 'bar',
       style: '',
-      top: 10 + currentTnElements.length * 20,
-      left: 6,
+      top: 20 + currentTnElements.length * 30,
+      left: 14,
       width: type === 'circle' ? 12 : type === 'rect' ? 16 : 100,
       height: type === 'circle' ? 12 : type === 'rect' ? 8 : 4
     };
@@ -1553,17 +1595,18 @@ let resizeHandle = null;
 // 미리보기 업데이트 (드래그 가능한 요소들로)
 function updateTnPreview() {
   tnPreview.innerHTML = currentTnElements.map((el, index) => {
-    const style = `position:absolute;top:${el.top}px;left:${el.left}px;width:${el.width}%;height:${el.height}px;background:#d8dee9;border-radius:${el.type === 'circle' ? '50%' : el.type === 'rect' ? '2px' : '3px'};`;
+    const widthCss = (el.type === 'bar' || el.type === 'kv') ? `${el.width}%` : `${el.width}px`;
+    const style = `position:absolute;top:${el.top}px;left:${el.left}px;width:${widthCss};height:${el.height}px;background:#d8dee9;border-radius:${el.type === 'circle' ? '50%' : el.type === 'rect' ? '2px' : '3px'};`;
     return `
-      <div class="tn-preview-element" data-index="${index}" style="${style}">
-        <div class="resize-handle n" data-handle="n"></div>
-        <div class="resize-handle s" data-handle="s"></div>
-        <div class="resize-handle w" data-handle="w"></div>
-        <div class="resize-handle e" data-handle="e"></div>
-        <div class="resize-handle nw" data-handle="nw"></div>
-        <div class="resize-handle ne" data-handle="ne"></div>
-        <div class="resize-handle sw" data-handle="sw"></div>
-        <div class="resize-handle se" data-handle="se"></div>
+      <div class="tn-preview-element tn-resizable" data-index="${index}" style="${style}">
+        <div class="handle n" data-handle="n"></div>
+        <div class="handle s" data-handle="s"></div>
+        <div class="handle w" data-handle="w"></div>
+        <div class="handle e" data-handle="e"></div>
+        <div class="handle nw" data-handle="nw"></div>
+        <div class="handle ne" data-handle="ne"></div>
+        <div class="handle sw" data-handle="sw"></div>
+        <div class="handle se" data-handle="se"></div>
       </div>
     `;
   }).join('');
@@ -1575,7 +1618,7 @@ function updateTnPreview() {
 // 드래그 앤 드롭 설정
 function setupDragAndDrop() {
   const elements = tnPreview.querySelectorAll('.tn-preview-element');
-  const handles = tnPreview.querySelectorAll('.resize-handle');
+  const handles = tnPreview.querySelectorAll('.tn-resizable .handle');
   
   // 기존 이벤트 리스너 제거
   elements.forEach(element => {
@@ -1622,7 +1665,7 @@ function onDrag(e) {
   if (Math.abs(deltaX) < 3 && Math.abs(deltaY) < 3) return;
   
   const newLeft = Math.max(0, Math.min(300 - currentTnElements[currentSelectedElement].width, elementStartLeft + deltaX));
-  const newTop = Math.max(0, Math.min(150 - currentTnElements[currentSelectedElement].height, elementStartTop + deltaY));
+  const newTop = Math.max(0, Math.min(450 - currentTnElements[currentSelectedElement].height, elementStartTop + deltaY));
   
   currentTnElements[currentSelectedElement].left = newLeft;
   currentTnElements[currentSelectedElement].top = newTop;
@@ -1658,70 +1701,82 @@ function startResize(e) {
   document.addEventListener('mouseup', stopResize);
 }
 
-// 리사이즈 중
-function onResize(e) {
-  if (!isResizing) return;
-  
+// 안정화 리사이즈 유틸과 핸들러 (클램프/스냅/스케일 보정 + rAF)
+const MIN_W = 8, MIN_H = 8;
+const MAX_W = 4096, MAX_H = 4096;
+const GRID_SNAP = 2;
+function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+function snap(v,step=GRID_SNAP){ return Math.round(v/step)*step; }
+function getPreviewScale(previewEl){
+  const st = window.getComputedStyle(previewEl);
+  const tr = st.transform; if(!tr || tr==='none') return 1;
+  const m = tr.match(/matrix\(([^)]+)\)/); if(m){ const a=parseFloat(m[1].split(',')[0]); return isNaN(a)?1:a; }
+  return 1;
+}
+
+let _resizeRAF = null;
+function onResize(e){
+  if(!isResizing) return;
   const rect = tnPreview.getBoundingClientRect();
-  const deltaX = e.clientX - rect.left - dragStartX;
-  const deltaY = e.clientY - rect.top - dragStartY;
-  
-  // 데드존 적용 (5px 이하의 움직임은 무시)
-  if (Math.abs(deltaX) < 5 && Math.abs(deltaY) < 5) return;
-  
-  // 민감도 조정 (0.5배로 줄임)
-  const adjustedDeltaX = deltaX * 0.5;
-  const adjustedDeltaY = deltaY * 0.5;
-  
-  const element = currentTnElements[currentSelectedElement];
-  let newLeft = elementStartLeft;
-  let newTop = elementStartTop;
-  let newWidth = element.width;
-  let newHeight = element.height;
-  
-  switch (resizeHandle) {
-    case 'n':
-      newTop = Math.max(0, Math.min(elementStartTop + adjustedDeltaY, elementStartTop + element.height - 15));
-      newHeight = Math.max(15, elementStartTop + element.height - newTop);
-      break;
-    case 's':
-      newHeight = Math.max(15, Math.min(150 - newTop, elementStartTop + element.height + adjustedDeltaY - newTop));
-      break;
-    case 'w':
-      newLeft = Math.max(0, Math.min(elementStartLeft + adjustedDeltaX, elementStartLeft + element.width - 15));
-      newWidth = Math.max(15, elementStartLeft + element.width - newLeft);
-      break;
-    case 'e':
-      newWidth = Math.max(15, Math.min(300 - newLeft, elementStartLeft + element.width + adjustedDeltaX - newLeft));
-      break;
-    case 'nw':
-      newLeft = Math.max(0, Math.min(elementStartLeft + adjustedDeltaX, elementStartLeft + element.width - 15));
-      newTop = Math.max(0, Math.min(elementStartTop + adjustedDeltaY, elementStartTop + element.height - 15));
-      newWidth = Math.max(15, elementStartLeft + element.width - newLeft);
-      newHeight = Math.max(15, elementStartTop + element.height - newTop);
-      break;
-    case 'ne':
-      newTop = Math.max(0, Math.min(elementStartTop + adjustedDeltaY, elementStartTop + element.height - 15));
-      newWidth = Math.max(15, Math.min(300 - newLeft, elementStartLeft + element.width + adjustedDeltaX - newLeft));
-      newHeight = Math.max(15, elementStartTop + element.height - newTop);
-      break;
-    case 'sw':
-      newLeft = Math.max(0, Math.min(elementStartLeft + adjustedDeltaX, elementStartLeft + element.width - 15));
-      newWidth = Math.max(15, elementStartLeft + element.width - newLeft);
-      newHeight = Math.max(15, Math.min(150 - newTop, elementStartTop + element.height + adjustedDeltaY - newTop));
-      break;
-    case 'se':
-      newWidth = Math.max(15, Math.min(300 - newLeft, elementStartLeft + element.width + adjustedDeltaX - newLeft));
-      newHeight = Math.max(15, Math.min(150 - newTop, elementStartTop + element.height + adjustedDeltaY - newTop));
-      break;
+  const scale = getPreviewScale(tnPreview);
+  const SENSITIVITY = 0.25; // 더 낮은 감도로 부드럽게
+  const dx = ((e.clientX - rect.left - dragStartX) / scale) * SENSITIVITY;
+  const dy = ((e.clientY - rect.top - dragStartY) / scale) * SENSITIVITY;
+  if(Math.abs(dx) < 0.8 && Math.abs(dy) < 0.8) return;
+
+  if(!_resizeRAF){
+    _resizeRAF = requestAnimationFrame(()=>{
+      _resizeRAF = null;
+      const el = currentTnElements[currentSelectedElement];
+      const startW = el.width; const startH = el.height;
+      let left = elementStartLeft, top = elementStartTop, width = startW, height = startH;
+
+      let dLeft=0, dTop=0, dW=0, dH=0;
+      const applyAxis=(axis,val)=>{
+        if(axis==='x'){
+          if(resizeHandle.includes('w')){ dLeft = val; dW = -val; }
+          if(resizeHandle.includes('e')){ dW = val; }
+        }else{
+          if(resizeHandle.includes('n')){ dTop = val; dH = -val; }
+          if(resizeHandle.includes('s')){ dH = val; }
+        }
+      };
+
+      let dxUse = dx, dyUse = dy; // 추후 Shift 고정비율 확장 가능
+      if(resizeHandle.includes('e')||resizeHandle.includes('w')) applyAxis('x', dxUse);
+      if(resizeHandle.includes('n')||resizeHandle.includes('s')) applyAxis('y', dyUse);
+
+      // 단위 처리: bar/kv = width% , 그 외(px)
+      const PREVIEW_W = 300, PREVIEW_H = 450;
+      const isPercentWidth = (el.type === 'bar' || el.type === 'kv');
+      const deltaWUnit = isPercentWidth ? (dW / PREVIEW_W) * 100 : dW;
+      const SNAP_PX = 1, SNAP_PERCENT = 0.5;
+      let newW = isPercentWidth
+        ? snap(clamp(width + deltaWUnit, 1, 100), SNAP_PERCENT)
+        : snap(clamp(width + deltaWUnit, MIN_W, MAX_W), SNAP_PX);
+      let newH = snap(clamp(height + dH, MIN_H, MAX_H), SNAP_PX);
+
+      // 왼쪽 핸들일 때 left는 dLeft(px)만큼 이동 (단위 혼합 방지)
+      let newLeft = left;
+      if (resizeHandle.includes('w')) {
+        newLeft = snap(left + dLeft, SNAP_PX);
+      }
+      // 위쪽 핸들일 때 top은 dTop(px)만큼 이동
+      let newTop  = resizeHandle.includes('n') ? snap(top + dTop, SNAP_PX) : top;
+
+      // 경계 (편집기 300x450) + 최대 크기 제한
+      const pixelWidth = isPercentWidth ? (newW * PREVIEW_W / 100) : newW;
+      newLeft = clamp(newLeft, 0, PREVIEW_W - pixelWidth);
+      newTop  = clamp(newTop, 0, PREVIEW_H - newH);
+      
+      // 최대 크기 제한 (요소가 너무 커지지 않도록)
+      newW = Math.min(newW, isPercentWidth ? 100 : 280);
+      newH = Math.min(newH, 400);
+
+      el.left = newLeft; el.top = newTop; el.width = newW; el.height = newH;
+      updateTnPreview();
+    });
   }
-  
-  element.left = newLeft;
-  element.top = newTop;
-  element.width = newWidth;
-  element.height = newHeight;
-  
-  updateTnPreview();
 }
 
 // 리사이즈 종료
@@ -1735,10 +1790,10 @@ function stopResize() {
 // 초기화 버튼
 tnResetBtn.addEventListener('click', () => {
   currentTnElements = [
-    {id: 0, type: 'bar', className: 'bar b1', style: '', top: 8, left: 6, width: 100, height: 4},
-    {id: 1, type: 'bar', className: 'bar b2', style: '', top: 20, left: 6, width: 60, height: 4},
-    {id: 2, type: 'bar', className: 'bar b3', style: '', top: 32, left: 6, width: 80, height: 4},
-    {id: 3, type: 'kv', className: 'kv', style: '', top: 60, left: 6, width: 100, height: 20}
+    {id: 0, type: 'bar', className: 'bar b1', style: '', top: 16, left: 14, width: 100, height: 4},
+    {id: 1, type: 'bar', className: 'bar b2', style: '', top: 28, left: 14, width: 60, height: 4},
+    {id: 2, type: 'bar', className: 'bar b3', style: '', top: 40, left: 14, width: 80, height: 4},
+    {id: 3, type: 'kv', className: 'kv', style: '', top: 64, left: 14, width: 100, height: 20}
   ];
   updateTnElementsList();
   updateTnPreview();
@@ -1834,6 +1889,8 @@ btnFull.addEventListener('click', async ()=>{
     if(detail.parentElement!==stage){ stage.appendChild(detail); detail.classList.add('fs'); }
     // bottom-area도 stage 내부로 이동하여 하단 고정
     if(bottomArea.parentElement!==stage){ stage.appendChild(bottomArea); }
+    // 줌 컨트롤도 stage 내부로 이동하여 전체화면에 표시
+    if(zoomControls && zoomControls.parentElement!==stage){ stage.appendChild(zoomControls); }
     btnFull.innerHTML = '<i class="fa-solid fa-compress"></i> 전체화면 종료';
   }else{
     await document.exitFullscreen();
@@ -1841,6 +1898,8 @@ btnFull.addEventListener('click', async ()=>{
     if(detail.parentElement===stage){ originalDetailParent.appendChild(detail); detail.classList.remove('fs'); }
     // bottom-area 원위치 복귀
     if(bottomArea.parentElement===stage){ originalBottomAreaParent.appendChild(bottomArea); }
+    // 줌 컨트롤 원위치 복귀 (stage 앞쪽에 배치)
+    if(zoomControls && zoomControls.parentElement===stage && originalZoomControlsParent){ originalZoomControlsParent.insertBefore(zoomControls, stage); }
     btnFull.innerHTML = '<i class="fa-solid fa-expand"></i> 전체화면';
   }
 });
@@ -1848,6 +1907,8 @@ document.addEventListener('fullscreenchange',()=>{
   if(document.fullscreenElement===stage){
     if(detail.parentElement!==stage){ stage.appendChild(detail); detail.classList.add('fs'); }
     if(bottomArea.parentElement!==stage){ stage.appendChild(bottomArea); }
+    // 전체화면에서도 줌 컨트롤 유지
+    if(zoomControls && zoomControls.parentElement!==stage){ stage.appendChild(zoomControls); }
     // 전체화면에서는 viewport 하단에 고정
     bottomArea.classList.add('fixed-bottom');
     // 상단바 표시
@@ -1863,6 +1924,7 @@ document.addEventListener('fullscreenchange',()=>{
   }else{
     if(detail.parentElement===stage){ originalDetailParent.appendChild(detail); detail.classList.remove('fs'); }
     if(bottomArea.parentElement===stage){ originalBottomAreaParent.appendChild(bottomArea); }
+    if(zoomControls && zoomControls.parentElement===stage && originalZoomControlsParent){ originalZoomControlsParent.insertBefore(zoomControls, stage); }
     bottomArea.classList.remove('fixed-bottom');
     const topbar = document.getElementById('fsTopbar');
     if(topbar){ topbar.style.display = 'none'; }
