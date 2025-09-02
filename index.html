@@ -6,7 +6,7 @@
 <title>S.com System Map</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
 <link rel="stylesheet" href="css/styles.css"/>
-<link rel="stylesheet" href="assets/logo.svg"/>
+
 </head>
 <body>
 <div class="container">
@@ -92,6 +92,12 @@
         <div class="pill" data-cluster="sub">서브메뉴</div>
         </div>
         
+        <div class="help-text" style="margin-top: 12px; padding: 8px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
+          <small style="color: #64748b; font-size: 11px; line-height: 1.4;">
+            💡 <strong>Shift+드래그:</strong> 수직 고정 | <strong>드래그:</strong> 레벨 변경 | <strong>ESC:</strong> 연결 모드 취소
+          </small>
+        </div>
+        
         <div class="search-box">
           <i class="fa-solid fa-magnifying-glass"></i>
           <input id="searchInput" placeholder="페이지/카테고리 검색"/>
@@ -104,6 +110,10 @@
           
           <!-- 줌 컨트롤 -->
           <div class="zoom-controls">
+            <button class="synapse-btn" id="btnSynapseMode" title="시냅스 연결 모드">
+              <i class="fa-solid fa-link"></i>
+              <span>연결</span>
+            </button>
             <button class="zoom-btn" id="btnZoomOut" title="축소">−</button>
             <div class="zoom-level" id="zoomLevel" title="줌 레벨">100%</div>
             <button class="zoom-btn" id="btnZoomIn" title="확대">+</button>

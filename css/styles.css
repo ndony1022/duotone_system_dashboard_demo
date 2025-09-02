@@ -104,7 +104,9 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,'Apple
 .stage::backdrop{background:var(--fs-backdrop)} /* 전체화면 배경색 미색 */
 #bands{position:absolute;inset:0;z-index:0;pointer-events:none}
 .level-band{position:absolute;left:0;width:100%;border-bottom:1px dashed var(--line);background:rgba(2,6,23,.015)}
-.level-label{position:absolute;left:8px;top:6px;font-size:11px;color:#64748b;font-weight:700;line-height:1.2}
+.level-label{position:absolute;left:20px;top:50%;transform:translateY(-50%);font-size:20px;color:#64748b;font-weight:700;line-height:1.2;text-align:left;width:200px}
+/* L0 레벨 라벨 특별 스타일 */
+.level-label:first-child{font-weight:800}
 #linksLayer{position:absolute;width:100%;height:100%;inset:0;pointer-events:none;z-index:1}
 
 /* CEJ 타임라인 전용 스타일 */
@@ -276,8 +278,16 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,'Apple
 
 /* 줌 컨트롤 그룹 */
 .zoom-controls{position:absolute;top:24px;right:140px;display:flex;gap:8px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px;box-shadow:0 4px 12px rgba(2,6,23,.08);z-index:5}
+/* 전체화면에서 줌 컨트롤 sticky 고정 */
+.stage:fullscreen .zoom-controls{position:fixed;top:24px;right:140px}
 .zoom-btn{width:32px;height:32px;border:1px solid var(--line);border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;font-weight:bold;font-size:16px;transition:.15s}
 .zoom-btn:hover{background:#f8fafc;border-color:var(--primary)}
+
+/* 시냅스 연결 버튼 (줌 컨트롤 내부) */
+.synapse-btn{display:flex;align-items:center;gap:6px;padding:8px 12px;background:#fff;border:1px solid var(--line);border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;color:#374151;transition:.15s;box-shadow:0 2px 4px rgba(2,6,23,.05)}
+.synapse-btn:hover{background:#f8fafc;border-color:var(--primary);color:var(--primary)}
+.synapse-btn.active{background:#eff6ff;border-color:#3b82f6;color:#1d4ed8;box-shadow:0 0 0 3px rgba(59,130,246,.1)}
+.synapse-btn i{font-size:14px}
 .zoom-level{min-width:60px;height:32px;border:1px solid var(--line);border-radius:16px;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;font-weight:bold;font-size:12px;padding:0 12px;transition:.15s}
 .zoom-level:hover{background:#f8fafc;border-color:var(--primary)}
 .zoom-level::after{content:'▼';font-size:10px;margin-left:4px;opacity:.6}

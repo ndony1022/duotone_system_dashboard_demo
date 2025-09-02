@@ -5,6 +5,11 @@ const colW = 260;           // 열 폭(조금 넓힘)
 const gapX = 40;            // 열 간격
 const gapY = 40;             // 행 간격 (밴드 간격 완전 제거)
 
+/* ---------- 전역 변수 ---------- */
+let synapses = []; // 시냅스 연결 정보 저장
+let globalConnectionMode = false; // 전역 시냅스 연결 모드
+let globalConnectionStart = null; // 전역 연결 시작 노드
+
 /* ---------- 데이터: PDF 구조 반영 ---------- */
 /* L0: Home, PFS, Shop, My Page, Accessories
    L1: Smartphones, Tablets, Book&Laptops, Watches, Buds, Galaxy Accessories, Sub Menu
@@ -128,6 +133,8 @@ const detail = document.getElementById('detail');
 const originalDetailParent = detail.parentElement;
 const bottomArea = document.getElementById('bottomArea');
 const originalBottomAreaParent = bottomArea.parentElement;
+// 현재 상세 패널에서 선택된 노드 정보 저장
+let currentDetailNode = null;
 // 줌 컨트롤 원위치 복원을 위한 참조
 const zoomControls = document.querySelector('.zoom-controls');
 const originalZoomControlsParent = zoomControls ? zoomControls.parentElement : null;
@@ -269,7 +276,7 @@ function updateBands(){
     
     const label = document.createElement('span');
     label.className = 'level-label';
-    label.innerHTML = `L${lv}<br>${['Home/Global','카테고리 허브','제품군/세부','PD 상위','Buying/Cart'][lv]||''}`;
+    label.innerHTML = `L${lv}`;
     band.appendChild(label);
     bands.appendChild(band);
   });
@@ -525,24 +532,59 @@ function generateRandomWireframe(){
   return patterns[randomIndex];
 }
 
-// 수평/수직 드래그앤드롭 (수동 위치 조정 가능, 경계 제한 포함, 실시간 연결선)
+// 수평/수직 드래그앤드롭 (레벨 밴드 제한, 레벨 변경, Shift 수직 고정, 시냅스 연결)
 function makeDraggable(el, node){
   let isDragging = false;
   let startX = 0;
   let startY = 0;
   let startLeft = 0;
   let startTop = 0;
+  let originalLevel = node.level;
+  let isConnecting = false;
+  let connectionStart = null;
 
   const onMouseDown = (e) => {
     if (e.button !== 0) return; // 좌클릭만 허용
     e.preventDefault();
     e.stopPropagation();
 
+    // 시냅스 연결 모드에서 노드 클릭
+    if (globalConnectionMode) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      // 연결 시작 노드 설정
+      if (!globalConnectionStart) {
+        globalConnectionStart = node;
+        
+        // 모든 노드에 연결 모드 스타일 적용
+        document.querySelectorAll('.node').forEach(n => {
+          n.style.cursor = 'crosshair';
+          if (n === el) {
+            n.style.border = '2px solid #3b82f6';
+            n.style.backgroundColor = '#eff6ff';
+          } else {
+            n.style.border = '1px solid #3b82f6';
+            n.style.backgroundColor = '#f8fafc';
+          }
+        });
+        
+        // 연결 모드 안내 메시지 업데이트
+        updateConnectionModeMessage();
+      } else if (globalConnectionStart.id !== node.id) {
+        // 다른 노드 클릭 시 연결/해제 토글
+        toggleSynapseConnection(globalConnectionStart.id, node.id);
+        exitConnectionMode();
+      }
+      return;
+    }
+
     isDragging = true;
     startX = e.clientX;
     startY = e.clientY;
     startLeft = parseFloat(el.style.left) || 0;
     startTop  = parseFloat(el.style.top)  || 0;
+    originalLevel = node.level;
 
     el.style.cursor = 'grabbing';
     el.style.zIndex = '10';
@@ -561,18 +603,36 @@ function makeDraggable(el, node){
     let newLeft = startLeft + deltaX;
     let newTop  = startTop  + deltaY;
 
-    // 스테이지의 실제 스크롤 가능한 영역 크기 사용
-    const stageScrollWidth  = stage.scrollWidth;
-    const stageScrollHeight = stage.scrollHeight;
-    const nodeWidth  = el.offsetWidth;
-    const nodeHeight = el.offsetHeight;
+    // Shift 키로 수직 이동 고정
+    if (e.shiftKey) {
+      newTop = startTop; // 수직 위치 고정
+    } else {
+      // 레벨 밴드 영역으로 제한
+      const bandH = 320;
+      const gapY = 40;
+      const levelIndex = Math.round((newTop - gapY) / bandH);
+      const clampedLevel = Math.max(0, Math.min(4, levelIndex));
+      
+      // 레벨 밴드 중앙으로 스냅
+      newTop = gapY + clampedLevel * bandH + 20;
+      
+      // 레벨이 변경된 경우
+      if (clampedLevel !== node.level) {
+        node.level = clampedLevel;
+        el.setAttribute('data-level', clampedLevel);
+        // 레벨 변경 시각적 피드백
+        el.style.border = '2px solid #10b981';
+        setTimeout(() => {
+          el.style.border = '1px solid var(--line)';
+        }, 500);
+      }
+    }
 
-    const maxLeft = stageScrollWidth  - nodeWidth  - 50; // 우측 여백 50
-    const maxTop  = stageScrollHeight - nodeHeight - 50; // 하단 여백 50
-
-    // 경계 제한 (약간의 음수 허용으로 가장자리로 스크롤 유도)
+    // 수평 경계 제한
+    const stageScrollWidth = stage.scrollWidth;
+    const nodeWidth = el.offsetWidth;
+    const maxLeft = stageScrollWidth - nodeWidth - 50;
     newLeft = Math.max(-100, Math.min(newLeft, maxLeft));
-    newTop  = Math.max(-100, Math.min(newTop,  maxTop));
 
     el.style.left = newLeft + 'px';
     el.style.top  = newTop  + 'px';
@@ -594,8 +654,114 @@ function makeDraggable(el, node){
   el.style.cursor = 'grab';
 }
 
+// 시냅스 연결/해제 토글 함수
+function toggleSynapseConnection(sourceId, targetId) {
+  const existingIndex = synapses.findIndex(s => 
+    (s.source === sourceId && s.target === targetId) ||
+    (s.source === targetId && s.target === sourceId)
+  );
+  
+  if (existingIndex >= 0) {
+    // 기존 연결 제거
+    synapses.splice(existingIndex, 1);
+    console.log(`시냅스 연결 해제: ${sourceId} ↔ ${targetId}`);
+  } else {
+    // 새 연결 추가
+    synapses.push({ source: sourceId, target: targetId, type: 'synapse' });
+    console.log(`시냅스 연결 생성: ${sourceId} ↔ ${targetId}`);
+  }
+  
+  // 연결선 재그리기
+  redrawLinksOnly();
+  
+  // 시각적 피드백
+  const sourceEl = stage.querySelector(`.node[data-id="${sourceId}"]`);
+  const targetEl = stage.querySelector(`.node[data-id="${targetId}"]`);
+  
+  if (sourceEl) {
+    sourceEl.style.border = '2px solid #8b5cf6';
+    setTimeout(() => {
+      sourceEl.style.border = '1px solid var(--line)';
+    }, 300);
+  }
+  
+  if (targetEl) {
+    targetEl.style.border = '2px solid #8b5cf6';
+    setTimeout(() => {
+      targetEl.style.border = '1px solid var(--line)';
+    }, 300);
+  }
+}
+
+// 연결 모드 진입 시 안내 메시지 표시
+function showConnectionModeMessage() {
+  const message = document.createElement('div');
+  message.id = 'connection-mode-message';
+  message.style.cssText = `
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #1e293b;
+    color: white;
+    padding: 16px 24px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    z-index: 1000;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+    border: 2px solid #3b82f6;
+  `;
+  message.innerHTML = `
+    🔗 <strong>시냅스 연결 모드</strong><br>
+    첫 번째 노드를 클릭하세요<br>
+    <small style="opacity: 0.8;">ESC 키로 취소</small>
+  `;
+  
+  document.body.appendChild(message);
+}
+
+// 연결 모드 안내 메시지 업데이트
+function updateConnectionModeMessage() {
+  const message = document.getElementById('connection-mode-message');
+  if (message) {
+    message.innerHTML = `
+      🔗 <strong>시냅스 연결 모드</strong><br>
+      연결할 두 번째 노드를 클릭하세요<br>
+      <small style="opacity: 0.8;">ESC 키로 취소</small>
+    `;
+  }
+}
+
+// 연결 모드 해제
+function exitConnectionMode() {
+  globalConnectionMode = false;
+  globalConnectionStart = null;
+  
+  // 모든 노드 스타일 초기화
+  document.querySelectorAll('.node').forEach(n => {
+    n.style.cursor = 'grab';
+    n.style.border = '1px solid var(--line)';
+    n.style.backgroundColor = '#fff';
+  });
+  
+  // 시냅스 버튼 비활성화
+  const synapseBtn = document.getElementById('btnSynapseMode');
+  if (synapseBtn) {
+    synapseBtn.classList.remove('active');
+  }
+  
+  // 안내 메시지 제거
+  const message = document.getElementById('connection-mode-message');
+  if (message) {
+    message.remove();
+  }
+}
+
 function redrawLinksOnly(){
   linksLayer.innerHTML='';
+  
+  // 기존 부모-자식 연결선 그리기
   nodes.filter(n=>n.parent).forEach(n=>{
     const c = stage.querySelector(`.node[data-id="${n.id}"]`);
     const p = stage.querySelector(`.node[data-id="${n.parent}"]`);
@@ -638,6 +804,30 @@ function redrawLinksOnly(){
     const d = `M ${x1} ${y1} V ${midY} H ${x2} V ${y2}`;
     linksLayer.insertAdjacentHTML('beforeend', `<path d="${d}" fill="none" stroke="#cfd8e3" stroke-width="2"/>`);
     }
+  });
+  
+  // 시냅스 연결선 그리기
+  synapses.forEach(synapse => {
+    const sourceEl = stage.querySelector(`.node[data-id="${synapse.source}"]`);
+    const targetEl = stage.querySelector(`.node[data-id="${synapse.target}"]`);
+    if (!sourceEl || !targetEl) return;
+    
+    const sourceLeft = parseFloat(sourceEl.style.left) || 0;
+    const sourceTop = parseFloat(sourceEl.style.top) || 0;
+    const targetLeft = parseFloat(targetEl.style.left) || 0;
+    const targetTop = parseFloat(targetEl.style.top) || 0;
+    
+    const sx = sourceLeft + sourceEl.offsetWidth/2;
+    const sy = sourceTop + sourceEl.offsetHeight/2;
+    const tx = targetLeft + targetEl.offsetWidth/2;
+    const ty = targetTop + targetEl.offsetHeight/2;
+    
+    // 시냅스 연결선 (곡선)
+    const midX = (sx + tx) / 2;
+    const midY = Math.min(sy, ty) - 50; // 위쪽으로 곡선
+    
+    const d = `M ${sx} ${sy} Q ${midX} ${midY} ${tx} ${ty}`;
+    linksLayer.insertAdjacentHTML('beforeend', `<path d="${d}" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-dasharray="5,5" opacity="0.8"/>`);
   });
 }
 
@@ -1073,6 +1263,25 @@ document.getElementById('btnZoomOut').addEventListener('click', () => {
   updateZoom(zoomLevels[nextIndex]);
 });
 
+// 시냅스 연결 모드 버튼
+document.getElementById('btnSynapseMode').addEventListener('click', () => {
+  if (globalConnectionMode) {
+    // 연결 모드 해제
+    exitConnectionMode();
+  } else {
+    // 연결 모드 활성화
+    globalConnectionMode = true;
+    globalConnectionStart = null;
+    
+    // 버튼 활성화
+    const synapseBtn = document.getElementById('btnSynapseMode');
+    synapseBtn.classList.add('active');
+    
+    // 안내 메시지 표시
+    showConnectionModeMessage();
+  }
+});
+
 // 줌 레벨 클릭 시 드롭다운 (간단한 구현)
 document.getElementById('zoomLevel').addEventListener('click', () => {
   const zoom = prompt('줌 레벨을 입력하세요 (50-200):', Math.round(currentZoom * 100));
@@ -1118,6 +1327,9 @@ function renderWfThumb(cluster='smartphones'){
     </div>`;
 }
 function openDetail(n){
+  // 현재 선택된 노드 정보 저장
+  currentDetailNode = n;
+  
   document.getElementById('d-title').textContent = n.title;
   document.getElementById('d-id').textContent = n.id;
   document.getElementById('d-url').innerHTML = `<a href="#" onclick="return false;">https://www.samsung.com/kr/mx/${n.id}</a>`;
@@ -1373,7 +1585,12 @@ function downloadWfThumb(ev){
 /* ---------- 와이어프레임 모달 ---------- */
 const modal = document.getElementById('modal'), mBody=document.getElementById('m-body'), mTitle=document.getElementById('m-title');
 document.getElementById('m-close').addEventListener('click',()=>modal.classList.remove('show'));
-document.getElementById('btnWire').addEventListener('click',()=>modal.classList.add('show'));
+document.getElementById('btnWire').addEventListener('click',()=>{
+  // 현재 상세 패널에서 선택된 노드가 있으면 와이어프레임 썸네일 편집 모달 열기
+  if(currentDetailNode){
+    openTnEdit(currentDetailNode);
+  }
+});
 function openWire(n){
   mTitle.textContent = `${n.title} · Wireframe`;
   mBody.innerHTML = `
@@ -1985,6 +2202,13 @@ function downloadFile(type) {
 
 /* ---------- 접근성 ---------- */
 document.addEventListener('keydown',(e)=>{
-  if(e.key==='Escape'){ detail.classList.remove('open'); modal.classList.remove('show'); }
+  if(e.key==='Escape'){ 
+    detail.classList.remove('open'); 
+    modal.classList.remove('show'); 
+    // ESC 키로 시냅스 연결 모드 취소
+    if(globalConnectionMode) {
+      exitConnectionMode();
+    }
+  }
   if((e.key==='f' || e.key==='F') && document.activeElement.closest('#stage')) btnFull.click();
 });

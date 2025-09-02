@@ -9,8 +9,8 @@
         {
             "type": "chrome",
             "request": "launch",
-            "name": "Open raw_v2.html",
-            "file": "/Users/dohoonnam/Desktop/system_dashboard_demo/raw_v2.html"
+                "name": "Open index.html",
+    "file": "/Users/dohoonnam/Desktop/system_dashboard_demo/index.html"
         }
     ]
 }
